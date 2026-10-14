@@ -131,7 +131,7 @@
       "description": "Skips the NSFW age-verification gate (discovery build).",
       "author": "You",
       "channels": {
-        "latest": "0.2.0"
+        "latest": "0.2.1"
       },
       "versions": {
         "0.1.0": {
@@ -151,6 +151,19 @@
           "url": "https://coloradodevly.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.2.0.zip",
           "sha256": "b9a2f1bc13d7244ddf12fe1ffe7361a9ed3e8c1373be7661ac2674c142286f0f",
           "size": 1295,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "0.2.1": {
+          "url": "https://coloradodevly.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.2.1.zip",
+          "sha256": "b91f1af8c68127b71d0214191d44c69bcd719ffec81ab3089eabacbf98b79187",
+          "size": 1218,
           "dependencies": {
             "revenge.api": {
               "version": ">=1"
