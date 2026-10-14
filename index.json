@@ -3,6 +3,29 @@
   "name": "My Plugin Repository",
   "description": "Example plugin repository from the Revenge plugin template.",
   "plugins": {
+    "coloradodevly.bundle-update-checker": {
+      "name": "Bundle Update Checker",
+      "description": "Prompts you to restart when a new Revenge bundle is published.",
+      "author": "Coloradodevly",
+      "channels": {
+        "latest": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "url": "https://coloradodevly.github.io/Jskd/pool/coloradodevly.bundle-update-checker@1.0.0.zip",
+          "sha256": "4b0d723d9418233e6a17e3446bcd2da16ad08d2650c73d77a2befc7b060f2cec",
+          "size": 962,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    },
     "com.example.always-errors": {
       "name": "Always Errors",
       "description": "A plugin that always throws errors.",
