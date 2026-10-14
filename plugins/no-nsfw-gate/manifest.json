@@ -1,13 +1,17 @@
 {
 	"format": 1,
-	"id": "dev.you.no-nsfw-gate",
-	"name": "No NSFW Gate",
-	"description": "Skips the NSFW age-verification gate (discovery build).",
-	"author": "Tanner",
-	"version": "0.3.2",
+	"id": "coloradodevly.bundle-update-checker",
+	"name": "Bundle Update Checker",
+	"description": "Prompts you to restart when a new Revenge bundle is published.",
+	"author": "Coloradodevly",
+	"version": "1.0.0",
 	"dependencies": {
-		"revenge.api": { "version": ">=1" },
-		"discord": { "version": "*" }
+		"revenge.api": {
+			"version": ">=1 <2"
+		},
+		"discord": {
+			"version": "*"
+		}
 	},
 	"dist": {
 		"script": "index.js"
