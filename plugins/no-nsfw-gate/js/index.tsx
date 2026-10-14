@@ -10,7 +10,6 @@ import {
 	FilterScopes,
 	withProps,
 } from '@revenge-mod/modules/finders/filters'
-import { isModuleExportBad } from '@revenge-mod/modules/metro/utils'
 
 // Matches exported property names that look related to the NSFW / age gate.
 const GATE_PATTERN = /nsfw|age.?(gate|verif|assur|check)|ageVerification/i
@@ -18,7 +17,8 @@ const MAX_ROWS = 60
 
 const withGateLikeProps = createFilterGenerator<[pattern: RegExp]>(
 	([pattern], _id, exports) => {
-		if (isModuleExportBad(exports)) return false
+		if (!exports || (typeof exports !== 'object' && typeof exports !== 'function'))
+			return false
 		return Object.keys(exports).some(k => pattern.test(k))
 	},
 	([pattern]) => `dev.you.no-nsfw-gate.scan(${pattern.source})`,
