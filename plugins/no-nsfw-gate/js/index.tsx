@@ -1,4 +1,3 @@
-import { Logger } from '@revenge-mod/discord/common'
 import { Design } from '@revenge-mod/discord/design'
 import {
 	onSettingsModulesLoaded,
@@ -70,9 +69,7 @@ function GateLogScreen() {
 
 export default plugin({
 	start({ cleanup }) {
-		// Also written to the in-app Debug Logs screen.
-		const logger = new Logger('NSFWGate')
-		for (const line of scan()) logger.log(`[gate-scan] ${line}`)
+		for (const line of scan()) console.log(`[gate-scan] ${line}`)
 
 		cleanup(
 			onSettingsModulesLoaded(() => {
