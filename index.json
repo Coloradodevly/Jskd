@@ -1,0 +1,153 @@
+{
+  "format": 1,
+  "name": "My Plugin Repository",
+  "description": "Example plugin repository from the Revenge plugin template.",
+  "plugins": {
+    "com.example.always-errors": {
+      "name": "Always Errors",
+      "description": "A plugin that always throws errors.",
+      "author": "Your Name <643945264868098049> (https://discord.com \"Website\")",
+      "icon": "CircleErrorIcon",
+      "channels": {
+        "latest": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "url": "https://coloradodevly.github.io/Jskd/pool/com.example.always-errors@1.0.0.zip",
+          "sha256": "b3eed6d1854a389536159bec6ecb6ec95aa87d72efdca04aebd808c27dd609dc",
+          "size": 596,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    },
+    "com.example.dependent": {
+      "name": "Example Dependent",
+      "description": "Depends on Example Library. Also installs the library.",
+      "author": "Your Name <643945264868098049> (https://discord.com \"Website\")",
+      "channels": {
+        "latest": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "url": "https://coloradodevly.github.io/Jskd/pool/com.example.dependent@1.0.0.zip",
+          "sha256": "29544b29b17d8888c5861c361998a43b0c9a251ec08acb975123d9b69249a701",
+          "size": 637,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            },
+            "com.example.library": {
+              "version": ">=1 <2"
+            }
+          }
+        }
+      }
+    },
+    "com.example.js-plugin": {
+      "name": "JS Plugin",
+      "description": "A JS-only example plugin without any native code.",
+      "author": "Your Name <643945264868098049> (https://discord.com \"Website\")",
+      "channels": {
+        "latest": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "url": "https://coloradodevly.github.io/Jskd/pool/com.example.js-plugin@1.0.0.zip",
+          "sha256": "259b4daa384f857f2ec46e656664b08308cc9d66d3d76d5801e504a057ce26aa",
+          "size": 608,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    },
+    "com.example.library": {
+      "name": "Example Library",
+      "description": "A plugin other plugins can depend on. See Example Dependent.",
+      "author": "Your Name <643945264868098049> (https://discord.com \"Website\")",
+      "channels": {
+        "latest": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "url": "https://coloradodevly.github.io/Jskd/pool/com.example.library@1.0.0.zip",
+          "sha256": "49c9c684e036c042b7ba3a5dd6e90aee07b18a655877e751f56ffaa0322e24ed",
+          "size": 637,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    },
+    "com.example.plugin": {
+      "name": "Example Plugin",
+      "description": "An example Revenge plugin built from the template.",
+      "author": "Your Name <643945264868098049> (https://discord.com \"Website\")",
+      "contributors": [
+        "Someone Else <669627189624307712> (mailto:support@discord.com)",
+        "Some Other Person"
+      ],
+      "channels": {
+        "latest": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "url": "https://coloradodevly.github.io/Jskd/pool/com.example.plugin@1.0.0.zip",
+          "sha256": "1f80076bc520bf4a713a3b55f7c9c7c53d57028901f6017a1d82c8c532ea8dcf",
+          "size": 5757,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    },
+    "dev.you.no-nsfw-gate": {
+      "name": "No NSFW Gate",
+      "description": "Skips the NSFW age-verification gate (discovery build).",
+      "author": "You",
+      "channels": {
+        "latest": "0.1.0"
+      },
+      "versions": {
+        "0.1.0": {
+          "url": "https://coloradodevly.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.1.0.zip",
+          "sha256": "7b7940d9dfa7000b697ef4eec407ce4c13b667ff5d39b5d3f386d6872afb7ec9",
+          "size": 327,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    }
+  }
+}
