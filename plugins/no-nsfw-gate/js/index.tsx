@@ -1,6 +1,6 @@
 import { AlertActionCreators } from '@revenge-mod/discord/actions'
 import { Design } from '@revenge-mod/discord/design'
-import { getStore, Stores } from '@revenge-mod/discord/flux'
+import { getStore } from '@revenge-mod/discord/flux'
 import { Page } from '@revenge-mod/components'
 import { getModules } from '@revenge-mod/modules/finders'
 import { withProps } from '@revenge-mod/modules/finders/filters'
@@ -160,6 +160,9 @@ function Settings({ api }: { api: Api }) {
 // Plugin
 // ---------------------------------------------------------------------------
 
+const isObj = (v: unknown): v is Record<string, any> =>
+	(typeof v === 'object' && v !== null) || typeof v === 'function'
+
 export default plugin({
 	jsonStorage: { load: true, default: DEFAULTS },
 
@@ -167,101 +170,148 @@ export default plugin({
 		// Read settings live so toggles apply without a reload.
 		const cfg = (): NSFWSettings => ({ ...DEFAULTS, ...jsonStorage.cache })
 
-		// 1) Gate bypass. These function names come from the old Vendetta plugin
-		//    and may have changed in your Discord version: verify with DevTools.
-		cleanup(
-			getModules(withProps('isNSFWInvite'), NSFWModule => {
-				for (const key of [
-					'handleNSFWGuildInvite',
-					'isNSFWInvite',
-					'shouldNSFWGateGuild',
-				]) {
-					if (typeof NSFWModule[key] !== 'function') continue
+		// Each step is isolated: one failing never takes the rest down, and the
+		// Debug Logs screen (Settings > Revenge > Developer) names the step that failed.
+		const step = (label: string, fn: () => void) => {
+			try {
+				fn()
+				logger.log(`[nsfw-gate] ${label}: ok`)
+			} catch (e) {
+				logger.error(`[nsfw-gate] ${label} FAILED: ${(e as any)?.stack ?? e}`)
+			}
+		}
 
-					cleanup(
-						instead(NSFWModule, key, (args: any[], orig: any) =>
-							cfg().nsfwBypass ? false : orig(...args),
-						),
-					)
-				}
-			}),
-		)
+		let ChannelStore: any
+
+		// 1) Gate bypass. Function names come from the old Vendetta plugin and may
+		//    have changed in your Discord version: verify with DevTools.
+		step('gate bypass', () => {
+			cleanup(
+				getModules(withProps('isNSFWInvite'), NSFWModule => {
+					if (!isObj(NSFWModule)) return
+
+					for (const key of [
+						'handleNSFWGuildInvite',
+						'isNSFWInvite',
+						'shouldNSFWGateGuild',
+					]) {
+						try {
+							if (typeof NSFWModule[key] !== 'function') continue
+
+							cleanup(
+								instead(NSFWModule, key, (args: any[], orig: any) =>
+									cfg().nsfwBypass ? false : orig(...args),
+								),
+							)
+						} catch (e) {
+							logger.error(`[nsfw-gate] patch ${key} failed: ${e}`)
+						}
+					}
+				}),
+			)
+		})
 
 		// 2) Mark the current user as NSFW-allowed.
-		cleanup(
-			getStore<any>('UserStore', UserStore => {
-				cleanup(
-					after(UserStore, 'getCurrentUser', (_args: any[], user: any) => {
-						if (
-							cfg().nsfwBypass &&
-							user &&
-							Object.hasOwn(user, 'nsfwAllowed')
-						) {
-							user.nsfwAllowed = true
-						}
-						return user
-					}),
-				)
-			}),
-		)
+		step('user patch', () => {
+			cleanup(
+				getStore<any>('UserStore', UserStore => {
+					if (!isObj(UserStore) || typeof UserStore.getCurrentUser !== 'function') {
+						logger.warn('[nsfw-gate] UserStore unusable, skipping user patch')
+						return
+					}
+
+					cleanup(
+						after(UserStore, 'getCurrentUser', (_args: any[], user: any) => {
+							if (
+								cfg().nsfwBypass &&
+								isObj(user) &&
+								Object.hasOwn(user, 'nsfwAllowed')
+							) {
+								user.nsfwAllowed = true
+							}
+							return user
+						}),
+					)
+				}),
+			)
+		})
+
+		// Grab ChannelStore once, as a plain object (no lazy proxy at call time).
+		step('channel store', () => {
+			cleanup(
+				getStore<any>('ChannelStore', store => {
+					if (isObj(store)) ChannelStore = store
+				}),
+			)
+		})
 
 		// 3) Warning popup / password lock when navigating into an NSFW channel.
-		cleanup(
-			getModules(withProps('transitionToGuild'), Nav => {
-				if (typeof Nav.transitionToGuild !== 'function') return
+		step('channel gate', () => {
+			cleanup(
+				getModules(withProps('transitionToGuild'), Nav => {
+					if (!isObj(Nav) || typeof Nav.transitionToGuild !== 'function') return
 
-				cleanup(
-					instead(Nav, 'transitionToGuild', (args: any[], orig: any) => {
-						const settings = cfg()
-						const path = args[0]
+					cleanup(
+						instead(Nav, 'transitionToGuild', (args: any[], orig: any) => {
+							try {
+								const settings = cfg()
+								const path = args[0]
 
-						if (!settings.showWarningPopup || typeof path !== 'string') {
-							return orig(...args)
-						}
+								if (
+									!settings.showWarningPopup ||
+									typeof path !== 'string' ||
+									!ChannelStore
+								) {
+									return orig(...args)
+								}
 
-						const channelId = path.match(/(\d+)$/)?.[1]
-						const channel = channelId
-							? Stores.ChannelStore.getChannel(channelId)
-							: undefined
+								const channelId = path.match(/(\d+)$/)?.[1]
+								const channel = channelId
+									? ChannelStore.getChannel(channelId)
+									: undefined
 
-						if (!channel?.nsfw) return orig(...args)
+								if (!channel?.nsfw) return orig(...args)
 
-						if (settings.lockNSFWChannels && settings.nsfwPassword) {
-							let entered = ''
+								if (settings.lockNSFWChannels && settings.nsfwPassword) {
+									let entered = ''
 
-							showConfirm({
-								title: '🔒 NSFW Channel Locked',
-								content: <PasswordPrompt onChange={v => (entered = v)} />,
-								confirmText: 'Unlock',
-								cancelText: 'Cancel',
-								onConfirm: () => {
-									if (entered === cfg().nsfwPassword) {
-										orig(...args)
-									} else {
-										showConfirm({
-											title: '❌ Incorrect Password',
-											content: 'The password you entered is incorrect.',
-											confirmText: 'OK',
-										})
-									}
-								},
-							})
-						} else {
-							showConfirm({
-								title: 'WARNING: Entering NSFW channel',
-								content:
-									'This channel contains content that may not be suitable for all audiences. Proceed with caution.',
-								confirmText: 'Proceed with Caution',
-								cancelText: 'Cancel',
-								onConfirm: () => orig(...args),
-							})
-						}
-					}),
-				)
-			}),
-		)
-
-		logger.log('NSFW Gate started')
+									showConfirm({
+										title: '🔒 NSFW Channel Locked',
+										content: <PasswordPrompt onChange={v => (entered = v)} />,
+										confirmText: 'Unlock',
+										cancelText: 'Cancel',
+										onConfirm: () => {
+											if (entered === cfg().nsfwPassword) {
+												orig(...args)
+											} else {
+												showConfirm({
+													title: '❌ Incorrect Password',
+													content: 'The password you entered is incorrect.',
+													confirmText: 'OK',
+												})
+											}
+										},
+									})
+								} else {
+									showConfirm({
+										title: 'WARNING: Entering NSFW channel',
+										content:
+											'This channel contains content that may not be suitable for all audiences. Proceed with caution.',
+										confirmText: 'Proceed with Caution',
+										cancelText: 'Cancel',
+										onConfirm: () => orig(...args),
+									})
+								}
+							} catch (e) {
+								// Never block navigation because of a plugin bug.
+								logger.error(`[nsfw-gate] gate hook error: ${e}`)
+								return orig(...args)
+							}
+						}),
+					)
+				}),
+			)
+		})
 	},
 
 	SettingsComponent: Settings,
