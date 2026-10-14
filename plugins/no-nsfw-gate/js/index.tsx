@@ -1,9 +1,4 @@
 import { Design } from '@revenge-mod/discord/design'
-import {
-	onSettingsModulesLoaded,
-	registerSettingsItem,
-	registerSettingsSection,
-} from '@revenge-mod/discord/modules/settings'
 import { lookupModule, lookupModules } from '@revenge-mod/modules/finders'
 import {
 	createFilterGenerator,
@@ -11,9 +6,10 @@ import {
 	withProps,
 } from '@revenge-mod/modules/finders/filters'
 
-// Matches exported property names that look related to the NSFW / age gate.
 const GATE_PATTERN = /nsfw|age.?(gate|verif|assur|check)|ageVerification/i
-const MAX_ROWS = 60
+const BATCH = 12
+const INTERVAL_MS = 15000
+const MAX_TICKS = 40
 
 const withGateLikeProps = createFilterGenerator<[pattern: RegExp]>(
 	([pattern], _id, exports) => {
@@ -42,53 +38,44 @@ function scan(): string[] {
 	return lines
 }
 
-// Settings icon placeholder (no icon).
-const NoIcon = () => null
-
-function GateLogScreen() {
-	const { TableRowGroup, TableRow } = Design
-	const lines = scan().slice(0, MAX_ROWS)
-
-	const content = (
-		<TableRowGroup title="NSFW gate scan">
-			{lines.length === 0 ? (
-				<TableRow label="No matches yet. Open an age-gated channel, then reopen this screen." />
-			) : (
-				lines.map(line => <TableRow key={line} label={line} />)
-			)}
-		</TableRowGroup>
-	)
-
-	// Wrap in React Native's ScrollView if we can find it, so long lists scroll.
-	const [RN] = lookupModule(
-		withProps<typeof import('react-native')>('ScrollView', 'View', 'Text'),
-	)
-	const ScrollView = RN?.ScrollView
-	return ScrollView ? <ScrollView>{content}</ScrollView> : content
-}
+type AlertCreators = { openAlert(key: string, element: unknown): void }
 
 export default plugin({
 	start({ cleanup }) {
-		for (const line of scan()) console.log(`[gate-scan] ${line}`)
+		const shown = new Set<string>()
+		let ticks = 0
 
-		cleanup(
-			onSettingsModulesLoaded(() => {
-				cleanup(
-					registerSettingsSection('NSFW_GATE_LOG', {
-						label: 'NSFWGATE-log',
-						settings: ['NSFW_GATE_LOG_MAIN'],
-					}),
-					registerSettingsItem('NSFW_GATE_LOG_MAIN', {
-						type: 'route',
-						title: () => 'NSFWGATE-log',
-						IconComponent: NoIcon,
-						screen: {
-							route: 'NsfwGateLogScreen',
-							getComponent: () => GateLogScreen,
-						},
-					}),
+		const tick = () => {
+			try {
+				const fresh = scan().filter(l => !shown.has(l))
+				if (fresh.length === 0) return
+				const batch = fresh.slice(0, BATCH)
+				for (const l of batch) shown.add(l)
+
+				const [Alerts] = lookupModule(withProps<AlertCreators>('openAlert'))
+				if (!Alerts) {
+					for (const l of batch) console.log(`[gate-scan] ${l}`)
+					return
+				}
+
+				const { AlertModal, AlertActionButton } = Design
+				Alerts.openAlert(
+					`nsfw-gate-scan-${ticks}`,
+					<AlertModal
+						title={`Gate scan: ${batch.length} of ${fresh.length} new`}
+						content={batch.join('\n')}
+						actions={<AlertActionButton text="Okay" />}
+					/>,
 				)
-			}),
-		)
+			} catch (e) {
+				console.log('[gate-scan] error', e)
+			}
+		}
+
+		const id = setInterval(() => {
+			tick()
+			if (++ticks >= MAX_TICKS) clearInterval(id)
+		}, INTERVAL_MS)
+		cleanup(() => clearInterval(id))
 	},
 })
