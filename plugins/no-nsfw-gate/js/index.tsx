@@ -1,81 +1,89 @@
 import { Design } from '@revenge-mod/discord/design'
-import { lookupModule, lookupModules } from '@revenge-mod/modules/finders'
-import {
-	createFilterGenerator,
-	FilterScopes,
-	withProps,
-} from '@revenge-mod/modules/finders/filters'
+import { getModules, lookupModule } from '@revenge-mod/modules/finders'
+import { withProps } from '@revenge-mod/modules/finders/filters'
+import { after } from '@revenge-mod/patcher'
 
-const GATE_PATTERN = /nsfw|age.?(gate|verif|assur|check)|ageVerification/i
-const BATCH = 12
-const INTERVAL_MS = 15000
-const MAX_TICKS = 40
-
-const withGateLikeProps = createFilterGenerator<[pattern: RegExp]>(
-	([pattern], _id, exports) => {
-		if (!exports || (typeof exports !== 'object' && typeof exports !== 'function'))
-			return false
-		return Object.keys(exports).some(k => pattern.test(k))
-	},
-	([pattern]) => `dev.you.no-nsfw-gate.scan(${pattern.source})`,
-	FilterScopes.Initialized,
-)
-
-function scan(): string[] {
-	const lines: string[] = []
-	for (const [exports, id] of lookupModules(withGateLikeProps(GATE_PATTERN))) {
-		const hits = Object.keys(exports)
-			.filter(k => GATE_PATTERN.test(k))
-			.map(k => {
-				let t = '?'
-				try {
-					t = typeof (exports as Record<string, unknown>)[k]
-				} catch {}
-				return `${k} (${t})`
-			})
-		lines.push(`#${id}: ${hits.join(', ')}`)
-	}
-	return lines
-}
-
+type Fns = Record<string, (...args: unknown[]) => unknown>
 type AlertCreators = { openAlert(key: string, element: unknown): void }
+
+// Functions that mean "gated" when true. We force them to false.
+const TARGETS: { find: string; keys: string[] }[] = [
+	{ find: 'shouldNSFWGateGuild', keys: ['shouldNSFWGateGuild'] },
+	{
+		find: 'isFeatureAgeGated',
+		keys: [
+			'isFeatureAgeGated',
+			'useIsFeatureAgeGated',
+			'hasAgeGatedFeatures',
+			'useHasAgeGatedFeatures',
+		],
+	},
+]
+
+function managerInfo(): string {
+	try {
+		const [mod] = lookupModule(
+			withProps<Record<string, unknown>>('AgeGateManager', 'AgeVerificationManager'),
+		)
+		if (!mod) return 'Managers: not loaded yet'
+		return ['AgeGateManager', 'AgeVerificationManager']
+			.map(name => {
+				const obj = mod[name]
+				const keys = obj && typeof obj === 'object' ? Object.keys(obj) : []
+				return `${name}: ${keys.join(', ') || '(none)'}`
+			})
+			.join('\n')
+	} catch {
+		return 'Managers: error reading'
+	}
+}
 
 export default plugin({
 	start({ cleanup }) {
-		const shown = new Set<string>()
-		let ticks = 0
+		const patched: string[] = []
 
-		const tick = () => {
+		for (const { find, keys } of TARGETS) {
+			cleanup(
+				getModules(withProps<Fns>(find), exports => {
+					for (const key of keys) {
+						if (typeof exports[key] !== 'function') continue
+						// `after` keeps Discord's own logic (and hook order) intact,
+						// then overrides the result.
+						cleanup(after(exports, key, () => false))
+						patched.push(key)
+					}
+				}),
+			)
+		}
+
+		const report = () => {
 			try {
-				const fresh = scan().filter(l => !shown.has(l))
-				if (fresh.length === 0) return
-				const batch = fresh.slice(0, BATCH)
-				for (const l of batch) shown.add(l)
+				const text = `Patched: ${
+					patched.length
+						? patched.join(', ')
+						: 'nothing yet (open the server, it may load later)'
+				}\n\n${managerInfo()}`
 
 				const [Alerts] = lookupModule(withProps<AlertCreators>('openAlert'))
 				if (!Alerts) {
-					for (const l of batch) console.log(`[gate-scan] ${l}`)
+					console.log(`[no-nsfw-gate] ${text}`)
 					return
 				}
-
 				const { AlertModal, AlertActionButton } = Design
 				Alerts.openAlert(
-					`nsfw-gate-scan-${ticks}`,
+					'no-nsfw-gate-report',
 					<AlertModal
-						title={`Gate scan: ${batch.length} of ${fresh.length} new`}
-						content={batch.join('\n')}
+						title="No NSFW Gate"
+						content={text}
 						actions={<AlertActionButton text="Okay" />}
 					/>,
 				)
 			} catch (e) {
-				console.log('[gate-scan] error', e)
+				console.log('[no-nsfw-gate] report error', e)
 			}
 		}
 
-		const id = setInterval(() => {
-			tick()
-			if (++ticks >= MAX_TICKS) clearInterval(id)
-		}, INTERVAL_MS)
-		cleanup(() => clearInterval(id))
+		const timer = setTimeout(report, 30000)
+		cleanup(() => clearTimeout(timer))
 	},
 })
