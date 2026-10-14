@@ -4,7 +4,7 @@
 	"name": "No NSFW Gate",
 	"description": "Skips the NSFW age-verification gate (discovery build).",
 	"author": "You",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"dependencies": {
 		"revenge.api": { "version": ">=1" },
 		"discord": { "version": "*" }
