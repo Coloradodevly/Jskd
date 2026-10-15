@@ -1,10 +1,10 @@
 {
 	"format": 1,
-	"id": "Staff.Tag.test.probe",
-	"name": "Tag Probe",
-	"description": "Temporary helper: shows how Discord builds chat message rows, so a staff-tag plugin can be written.",
+	"id": "evantanner.staff-tags",
+	"name": "Staff Tags",
+	"description": "Shows a tag next to the username of anyone with the Administrator permission. Tags can be customized per person.",
 	"author": "Evan Tanner",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"dependencies": {
 		"revenge.api": { "version": ">=1 <2" },
 		"discord": { "version": "*" }
