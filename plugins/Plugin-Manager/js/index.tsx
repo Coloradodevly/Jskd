@@ -33,6 +33,7 @@ import {
 	formatVersion,
 	getPluginContributorName,
 } from '@revenge-mod/plugins/utils'
+import { reloadApp } from '@revenge-mod/modules/native/app'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ScrollView, View } from 'react-native'
 import type { AnyPlugin } from '@revenge-mod/plugins/_'
@@ -711,7 +712,207 @@ function PluginManager() {
 	)
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Automatic update checker                                                  */
+/* -------------------------------------------------------------------------- */
+
+const UPDATE_CHECK_INTERVAL_MS = 60 * 1000 // every minute
+const FIRST_CHECK_DELAY_MS = 10 * 1000 // let Discord finish starting first
+const MAX_LISTED = 8 // keep the popup readable
+
+type PluginLogger = { log(...a: unknown[]): void }
+let pluginLogger: PluginLogger | undefined
+
+function log(...args: unknown[]) {
+	console.log('[plugin-browser:updates]', ...args)
+	try {
+		pluginLogger?.log(args.map(String).join(' '))
+	} catch {}
+}
+
+/** True while an update is being installed, so checks don't overlap it. */
+let applyingUpdates = false
+
+/** Download sizes come from the repository listing, keyed by plugin id. */
+async function getUpdateSizes(
+	updates: PluginUpdate[],
+): Promise<Map<string, number>> {
+	const sizes = new Map<string, number>()
+	try {
+		const repos = (await listRepos()).filter(r => r.enabled)
+		for (const repo of repos) {
+			for (const listing of await listRepoPlugins(repo.url)) {
+				const update = updates.find(u => u.id === listing.id)
+				if (!update || sizes.has(update.id)) continue
+				const size = listing.versions[update.available]?.size
+				if (size) sizes.set(update.id, size)
+			}
+		}
+	} catch (e) {
+		log('Could not read update sizes:', errorText(e))
+	}
+	return sizes
+}
+
+function installedVersionOf(update: PluginUpdate) {
+	const plugin = pList.get(update.id)
+	if (plugin) return versionOf(plugin)
+	const any = update as any
+	return String(any.installed ?? any.current ?? '?')
+}
+
+function summarizeUpdates(updates: PluginUpdate[], sizes: Map<string, number>) {
+	const lines = updates.slice(0, MAX_LISTED).map(u => {
+		const name = pList.get(u.id)?.manifest.name ?? u.id
+		const size = formatSize(sizes.get(u.id))
+		return `${name}\nv${installedVersionOf(u)} → v${u.available}${size ? ` · ${size}` : ''}`
+	})
+
+	const more = updates.length - MAX_LISTED
+	if (more > 0) lines.push(`…and ${more} more`)
+
+	const total = formatSize(
+		updates.reduce((sum, u) => sum + (sizes.get(u.id) ?? 0), 0),
+	)
+
+	return [
+		...lines,
+		total ? `Total download: ${total}` : null,
+		'Update all of them and reload Revenge now?',
+	]
+		.filter(Boolean)
+		.join('\n\n')
+}
+
+/** Installs the given updates, then reloads Revenge. */
+async function applyUpdatesAndReload(ids: Set<string>) {
+	applyingUpdates = true
+	try {
+		log(`Updating ${ids.size} plugin(s):`, [...ids].join(', '))
+		const { installed, pending, errors } = await updatePlugins(ids)
+		await resyncPluginSources().catch(noop)
+		log(
+			`Done. installed=${installed.length} pending=${pending.length} errors=${errors.length}`,
+		)
+
+		if (!errors.length) {
+			log('Reloading Revenge')
+			reloadApp()
+			return
+		}
+
+		// Something failed: tell the user instead of reloading silently.
+		const failed = errors
+			.map(e => `${e.id} failed: ${errorText(e.error)}`)
+			.join('\n\n')
+		const worked = installed.length + pending.length > 0
+
+		openAlert(
+			'Some updates failed',
+			worked ? `${failed}\n\nThe rest were updated. Reload now?` : failed,
+			worked
+				? [
+						{ text: 'Reload now', onPress: () => reloadApp() },
+						{ text: 'Later', variant: 'secondary' },
+					]
+				: [{ text: 'Okay' }],
+		)
+	} catch (e) {
+		log('Update failed:', errorText(e))
+		openAlert('Update failed', errorText(e))
+	} finally {
+		applyingUpdates = false
+	}
+}
+
+function startUpdateChecker(): () => void {
+	// The set of updates the user was last asked about. Answering No (or closing
+	// the popup) means we stay quiet until a different set of updates shows up.
+	let lastAsked = ''
+	let checking = false
+	let stopped = false
+
+	const check = async () => {
+		if (checking || stopped || applyingUpdates) return
+		checking = true
+		try {
+			log('Step 1: refreshing repositories')
+			const { errors } = await refreshAllRepos()
+			if (errors.length) {
+				log(
+					'Some repositories failed:',
+					errors.map(e => `${e.url}: ${errorText(e.error)}`).join('; '),
+				)
+			}
+
+			log('Step 2: checking installed plugins for updates')
+			const all = await listUpdates()
+			const safe = selectSafeUpdates(all)
+			const updates = all.filter(u => safe.has(u.id))
+
+			if (!updates.length) {
+				log('No updates available')
+				lastAsked = ''
+				return
+			}
+
+			const signature = updates
+				.map(u => `${u.id}@${u.available}`)
+				.sort()
+				.join('|')
+			if (signature === lastAsked) {
+				log('Already asked about these updates, staying quiet')
+				return
+			}
+			lastAsked = signature
+
+			log(`Step 3: ${updates.length} update(s) found, showing popup`)
+			const sizes = await getUpdateSizes(updates)
+			const ids = new Set(updates.map(u => u.id))
+
+			openAlert(
+				`${updates.length} plugin update${updates.length === 1 ? '' : 's'} available`,
+				summarizeUpdates(updates, sizes),
+				[
+					{
+						text: 'Yes',
+						onPress: () => {
+							log('User chose Yes')
+							void applyUpdatesAndReload(ids)
+						},
+					},
+					{
+						text: 'No',
+						variant: 'secondary',
+						onPress: () => log('User chose No'),
+					},
+				],
+			)
+		} catch (e) {
+			log('Update check failed:', errorText(e))
+		} finally {
+			checking = false
+		}
+	}
+
+	log(`Update checker started (every ${UPDATE_CHECK_INTERVAL_MS / 1000}s)`)
+	const first = setTimeout(check, FIRST_CHECK_DELAY_MS)
+	const timer = setInterval(check, UPDATE_CHECK_INTERVAL_MS)
+
+	return () => {
+		stopped = true
+		clearTimeout(first)
+		clearInterval(timer)
+		log('Update checker stopped')
+	}
+}
+
 export default plugin({
+	start({ cleanup, logger }) {
+		pluginLogger = logger
+		cleanup(startUpdateChecker())
+	},
+
 	SettingsComponent() {
 		return <PluginManager />
 	},
