@@ -123,6 +123,27 @@ function isAdmin(guildId: string, userId: string, tagOwner: boolean): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Emoji support
+// ---------------------------------------------------------------------------
+// Unicode emojis (😀) are plain text and just work. Custom server emojis are
+// written as <:name:id> or <a:name:id> (animated). Discord renders tag text as
+// plain text, so a custom emoji is pulled out and shown through tagIconUrl.
+
+const CUSTOM_EMOJI = /<(a?):\w+:(\d+)>/g
+
+function parseTag(raw: string): { text: string; iconUrl?: string } {
+	let iconUrl: string | undefined
+	const text = raw
+		.replace(CUSTOM_EMOJI, (_m, animated: string, id: string) => {
+			iconUrl ??= `https://cdn.discordapp.com/emojis/${id}.${animated ? 'gif' : 'png'}?size=64`
+			return ''
+		})
+		.trim()
+	// An icon-only tag still needs some text for Discord to draw the tag.
+	return { text: text || (iconUrl ? '\u200b' : ''), iconUrl }
+}
+
+// ---------------------------------------------------------------------------
 // Row patch
 // ---------------------------------------------------------------------------
 
@@ -146,7 +167,11 @@ function applyTag(settings: Settings, row: any) {
 	}
 	if (!text) return
 
-	msg.tagText = text
+	const tag = parseTag(text)
+	if (!tag.text) return
+
+	msg.tagText = tag.text
+	if (tag.iconUrl) msg.tagIconUrl = tag.iconUrl
 	msg.tagBackgroundColor = toColor(settings.color)
 	msg.tagTextColor = -1 // white
 	msg.tagVerified = false
@@ -260,6 +285,11 @@ export default plugin({
 					<Button variant="primary" text="Add" onPress={addOverride} />
 				</TableRowGroup>
 
+				<Text variant="text-sm/medium">
+					Emojis: type normal emojis straight into any tag (for example 👑 STAFF).
+					For a custom server emoji, paste its code like {'<:name:123456789>'}
+					(the icon is shown on the tag).
+				</Text>
 				<Text variant="text-sm/medium">
 					A custom tag is shown for that person even if they are not an
 					administrator. Reopen the channel to see changes on existing messages.
