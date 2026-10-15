@@ -4,7 +4,7 @@ import type { JsonStorage } from '@revenge-mod/json-storage'
 import { getModules } from '@revenge-mod/modules/finders'
 import { createFilterGenerator } from '@revenge-mod/modules/finders/filters'
 import { after } from '@revenge-mod/patcher'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ScrollView } from 'react-native'
 
 // ---------------------------------------------------------------------------
@@ -143,6 +143,62 @@ function parseTag(raw: string): { text: string; iconUrl?: string } {
 	return { text: text || (iconUrl ? '\u200b' : ''), iconUrl }
 }
 
+// Emoji finder: looks up custom emojis from the servers you are in by name.
+
+interface FoundEmoji {
+	id: string
+	name: string
+	animated: boolean
+	guild: string
+	code: string
+}
+
+const MAX_RESULTS = 10
+
+function searchEmojis(query: string): FoundEmoji[] {
+	const q = query.trim().toLowerCase().replace(/^:|:$/g, '')
+	if (!q) return []
+
+	const out: FoundEmoji[] = []
+	try {
+		const st = Stores as any
+		const guilds: Record<string, any> = st.GuildStore?.getGuilds?.() ?? {}
+
+		for (const guild of Object.values(guilds)) {
+			let emojis: any[] = []
+			try {
+				emojis = st.EmojiStore?.getGuildEmoji?.(guild.id) ?? []
+			} catch {}
+			if (!emojis.length) {
+				emojis = st.EmojiStore?.getGuilds?.()?.[guild.id]?.emojis ?? []
+			}
+
+			for (const e of emojis) {
+				const name: string | undefined = e?.name
+				if (!name || !e.id || !name.toLowerCase().includes(q)) continue
+				const animated = !!e.animated
+				out.push({
+					id: e.id,
+					name,
+					animated,
+					guild: guild.name ?? guild.id,
+					code: `<${animated ? 'a' : ''}:${name}:${e.id}>`,
+				})
+			}
+		}
+	} catch (e) {
+		warnOnce('emoji-search', 'Emoji search failed:', String(e))
+	}
+
+	// Exact name matches first, then alphabetical.
+	out.sort(
+		(a, b) =>
+			Number(b.name.toLowerCase() === q) - Number(a.name.toLowerCase() === q) ||
+			a.name.localeCompare(b.name),
+	)
+	return out.slice(0, MAX_RESULTS)
+}
+
 // ---------------------------------------------------------------------------
 // Row patch
 // ---------------------------------------------------------------------------
@@ -198,8 +254,16 @@ export default plugin({
 	jsonStorage: { load: true, default: DEFAULTS },
 
 	SettingsComponent({ api }: { api: { jsonStorage: JsonStorage<Settings> } }) {
-		const { Button, Text, TextInput, TableRow, TableRowGroup, TableSwitchRow } =
-			Design
+		const {
+			Button,
+			Card,
+			Stack,
+			Text,
+			TextInput,
+			TableRow,
+			TableRowGroup,
+			TableSwitchRow,
+		} = Design
 		const storage = api.jsonStorage
 		const s: Settings = { ...DEFAULTS, ...(storage.use() ?? {}) }
 		const overrides = parseOverrides(s.overrides)
@@ -207,6 +271,8 @@ export default plugin({
 		const [newId, setNewId] = useState('')
 		const [newTag, setNewTag] = useState('')
 		const [error, setError] = useState('')
+		const [emojiQuery, setEmojiQuery] = useState('')
+		const emojiResults = useMemo(() => searchEmojis(emojiQuery), [emojiQuery])
 
 		const saveOverrides = (next: Record<string, string>) =>
 			storage.set({ overrides: JSON.stringify(next) })
@@ -284,6 +350,55 @@ export default plugin({
 					{error ? <Text variant="text-sm/medium">{error}</Text> : null}
 					<Button variant="primary" text="Add" onPress={addOverride} />
 				</TableRowGroup>
+
+				<TableRowGroup title="Emoji code finder">
+					<TextInput
+						label="Emoji name"
+						size="md"
+						placeholder="e.g. emoji_4"
+						value={emojiQuery}
+						onChange={(v: string) => setEmojiQuery(v)}
+					/>
+				</TableRowGroup>
+
+				{emojiQuery.trim() && emojiResults.length === 0 ? (
+					<Text variant="text-sm/medium">
+						No emoji with that name in your servers.
+					</Text>
+				) : null}
+
+				{emojiResults.map(emoji => (
+					<Card key={emoji.code}>
+						<Stack spacing={6}>
+							<Text variant="text-md/semibold">
+								:{emoji.name}: · {emoji.guild}
+							</Text>
+							<Text variant="text-sm/medium" selectable>
+								{emoji.code}
+							</Text>
+							<Stack spacing={8} direction="horizontal">
+								<Button
+									text="Add to default tag"
+									variant="secondary"
+									size="sm"
+									onPress={() =>
+										storage.set({
+											defaultTag: `${s.defaultTag} ${emoji.code}`.trim(),
+										})
+									}
+								/>
+								<Button
+									text="Add to custom tag"
+									variant="secondary"
+									size="sm"
+									onPress={() =>
+										setNewTag(t => `${t} ${emoji.code}`.trim())
+									}
+								/>
+							</Stack>
+						</Stack>
+					</Card>
+				))}
 
 				<Text variant="text-sm/medium">
 					Emojis: type normal emojis straight into any tag (for example 👑 STAFF).
