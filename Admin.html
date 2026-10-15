@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Manage repository</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%A0%3C/text%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;--bg:#14161f;--surface:#1c1f2e;--surface-2:#242840;--line:#2f3350;--text:#e9eaf4;--muted:#9a9fbd;--accent:#8b8cff;--accent-ink:#14161f;--warm:#ffb86b;--ok:#7be0a8;--danger:#ff7a8a;--display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;--body:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+@media(prefers-color-scheme:light){:root{color-scheme:light;--bg:#f6f6fb;--surface:#fff;--surface-2:#ecedf8;--line:#d9dbee;--text:#1a1c2e;--muted:#5d6280;--accent:#4a4bd6;--accent-ink:#fff;--warm:#a85a00;--ok:#11794a;--danger:#c0213a}}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:400 1rem/1.5 var(--body);padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+a{color:var(--accent)}
+.wrap{max-width:44rem;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+h1{font:800 clamp(2rem,9vw,3rem)/1 var(--display);letter-spacing:-.03em;margin:0 0 .5rem}
+h2{font:800 1.4rem/1.1 var(--display);letter-spacing:-.02em;margin:2rem 0 .75rem}
+h3{font:700 1.15rem/1.2 var(--display);margin:0}
+.muted{color:var(--muted);font-size:.92rem}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:1rem;margin-bottom:.9rem}
+label{display:block;font-weight:600;margin:.7rem 0 .3rem}
+input[type=text],input[type=password]{width:100%;font:500 .95rem var(--body);color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:.7rem .8rem}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.check{display:flex;gap:.5rem;align-items:center;font-weight:500;margin:.8rem 0}
+button{font:600 .9rem var(--body);cursor:pointer;border:0;border-radius:10px;padding:.6rem .95rem;background:var(--accent);color:var(--accent-ink)}
+button.ghost{background:var(--surface-2);color:var(--text)}
+button.danger{background:transparent;color:var(--danger);border:1px solid var(--danger)}
+button:disabled{opacity:.45;cursor:default}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem;margin-bottom:.4rem}
+.id{color:var(--muted);font-size:.82rem;overflow-wrap:anywhere}
+.v{display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.6rem 0;border-top:1px dashed var(--line)}
+.v.gone .name{text-decoration:line-through;color:var(--muted)}
+.badge{font-size:.78rem;font-weight:600;color:var(--ok);margin-left:.4rem}
+.badge.pin{color:var(--warm)}
+.ops{margin:0 0 .8rem;padding-left:1.1rem}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:.82rem/1.45 ui-monospace,Menlo,Consolas,monospace;color:var(--muted);margin:0}
+.err{color:var(--danger)}.okc{color:var(--ok)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+	<h1>Manage repository</h1>
+	<p class="muted">Delete plugins or versions, and choose which version is the latest. Changes are staged first, then applied through the GitHub API with your token. Nothing here works without one.</p>
+
+	<div class="box" id="connect">
+		<label for="token">GitHub token</label>
+		<input id="token" type="password" autocomplete="off" placeholder="github_pat_…">
+		<p class="muted">Create a <a href="https://github.com/settings/personal-access-tokens/new" rel="noopener">fine-grained token</a> for this one repository with <b>Contents</b> and <b>Actions</b> set to read and write. Give it a short expiry.</p>
+		<label for="repo">Repository (owner/name)</label>
+		<input id="repo" type="text" autocapitalize="none" spellcheck="false">
+		<label for="branch">Pool branch</label>
+		<input id="branch" type="text" autocapitalize="none" spellcheck="false" value="gh-pages">
+		<label class="check"><input id="remember" type="checkbox"> Remember on this device</label>
+		<button id="go" type="button">Connect</button>
+		<p id="status" class="muted" role="status"></p>
+	</div>
+
+	<div id="app" hidden>
+		<div class="box" id="staged" hidden>
+			<h3>Staged changes</h3>
+			<ol class="ops" id="ops"></ol>
+			<div class="row">
+				<button id="apply" type="button">Apply changes</button>
+				<button id="discard" type="button" class="ghost">Discard</button>
+			</div>
+		</div>
+		<h2>Plugins</h2>
+		<div id="list"></div>
+		<h2>Activity</h2>
+		<div class="box"><pre id="log">Nothing yet.</pre></div>
+	</div>
+</div>
+
+<script>
+(() => {
+	const $ = id => document.getElementById(id)
+	const el = (tag, props = {}, ...kids) => {
+		const n = document.createElement(tag)
+		for (const [k, v] of Object.entries(props)) {
+			if (k === 'class') n.className = v
+			else if (k === 'onclick') n.onclick = v
+			else if (v !== undefined && v !== null && v !== false) n.setAttribute(k, v)
+		}
+		for (const kid of kids.flat()) if (kid != null && kid !== false) n.append(kid.nodeType ? kid : document.createTextNode(String(kid)))
+		return n
+	}
+
+	const STORE = 'evan-plugins-admin'
+	let token = '', owner = '', repo = '', branch = '', mainBranch = 'main'
+	let plugins = [] // { id, name, versions: [{version,size}], latest }
+	let staged = [] // { type: 'del' | 'pin', id, version }
+	let busy = false
+
+	/* ---------- helpers ---------- */
+	const cmp = (a, b) => {
+		const pa = a.split(/[.+-]/).map(Number), pb = b.split(/[.+-]/).map(Number)
+		for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d }
+		return 0
+	}
+	const size = n => !n ? '' : n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`
+	const log = (msg, cls) => {
+		const pre = $('log')
+		if (pre.textContent === 'Nothing yet.') pre.textContent = ''
+		const line = el('span', { class: cls || '' }, `${new Date().toLocaleTimeString()}  ${msg}\n`)
+		pre.append(line)
+	}
+	const setStatus = (msg, cls) => { const s = $('status'); s.textContent = msg; s.className = `muted ${cls || ''}` }
+
+	const gh = async (path, opts = {}) => {
+		const res = await fetch(`https://api.github.com${path}`, {
+			...opts,
+			headers: {
+				Authorization: `Bearer ${token}`,
+				Accept: 'application/vnd.github+json',
+				'X-GitHub-Api-Version': '2022-11-28',
+				...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+			},
+		})
+		if (!res.ok) {
+			let msg = res.statusText
+			try { msg = (await res.json()).message || msg } catch {}
+			const e = new Error(`${res.status} ${msg}`)
+			e.status = res.status
+			throw e
+		}
+		return res.status === 204 ? null : res.json()
+	}
+	const fromB64 = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, '')), c => c.charCodeAt(0)))
+	const toB64 = str => btoa(String.fromCharCode(...new TextEncoder().encode(str)))
+
+	/* ---------- plugin state ---------- */
+	const isDeleted = (id, version) => staged.some(o => o.type === 'del' && o.id === id && o.version === version)
+	const pinOf = id => staged.find(o => o.type === 'pin' && o.id === id)?.version
+
+	// The version the index will most likely call "latest" after the staged changes.
+	const effectiveLatest = p => {
+		const pin = pinOf(p.id)
+		if (pin) return pin
+		if (p.latest && !isDeleted(p.id, p.latest)) return p.latest
+		const left = p.versions.filter(v => !isDeleted(p.id, v.version))
+		return (left.find(v => !/-/.test(v.version)) || left[0])?.version
+	}
+
+	const toggleDelete = (p, version) => {
+		if (isDeleted(p.id, version)) staged = staged.filter(o => !(o.type === 'del' && o.id === p.id && o.version === version))
+		else {
+			staged.push({ type: 'del', id: p.id, version })
+			staged = staged.filter(o => !(o.type === 'pin' && o.id === p.id && o.version === version))
+		}
+		render()
+	}
+	const toggleDeletePlugin = p => {
+		const all = p.versions.every(v => isDeleted(p.id, v.version))
+		for (const v of p.versions) if (isDeleted(p.id, v.version) === all) toggleDelete(p, v.version)
+	}
+	const pin = (p, version) => {
+		staged = staged.filter(o => !(o.type === 'pin' && o.id === p.id))
+		staged.push({ type: 'pin', id: p.id, version })
+		render()
+	}
+
+	/* ---------- rendering ---------- */
+	const render = () => {
+		const list = $('list')
+		list.replaceChildren()
+		for (const p of plugins) {
+			const lat = effectiveLatest(p)
+			const allGone = p.versions.every(v => isDeleted(p.id, v.version))
+			list.append(el('section', { class: 'box' },
+				el('div', { class: 'top' },
+					el('div', {}, el('h3', {}, p.name), el('div', { class: 'id' }, p.id)),
+					el('button', { class: 'danger', disabled: busy, onclick: () => toggleDeletePlugin(p) }, allGone ? 'Undo delete' : 'Delete plugin')),
+				p.versions.map(v => {
+					const gone = isDeleted(p.id, v.version)
+					const pinned = pinOf(p.id) === v.version
+					return el('div', { class: `v ${gone ? 'gone' : ''}` },
+						el('div', {},
+							el('span', { class: 'name' }, `v${v.version}`),
+							!gone && lat === v.version ? el('span', { class: `badge ${pinned ? 'pin' : ''}` }, pinned ? 'latest (set by you)' : 'latest') : null,
+							el('div', { class: 'id' }, size(v.size))),
+						el('div', { class: 'row' },
+							el('button', { class: 'ghost', disabled: busy || gone || lat === v.version, onclick: () => pin(p, v.version) }, 'Make latest'),
+							el('button', { class: 'danger', disabled: busy, onclick: () => toggleDelete(p, v.version) }, gone ? 'Undo' : 'Delete')))
+				})))
+		}
+		const ops = $('ops')
+		ops.replaceChildren(...staged.map(o => el('li', {}, o.type === 'del' ? `Delete ${o.id} v${o.version}` : `Make ${o.id} v${o.version} the latest`)))
+		$('staged').hidden = !staged.length
+		$('apply').disabled = busy
+	}
+
+	const load = async () => {
+		const res = await fetch(`index.json?t=${Date.now()}`, { cache: 'no-store' })
+		if (!res.ok) throw new Error(`Couldn't read index.json (${res.status}).`)
+		const data = await res.json()
+		plugins = Object.entries(data.plugins || {}).map(([id, p]) => ({
+			id, name: p.name || id, latest: p.channels?.latest,
+			versions: Object.entries(p.versions || {}).map(([version, v]) => ({ version, size: v.size })).sort((a, b) => cmp(b.version, a.version)),
+		})).sort((a, b) => a.name.localeCompare(b.name))
+		staged = []
+		render()
+	}
+
+	/* ---------- repo.config.json channel overrides (pure, so it can be tested) ---------- */
+	const planConfig = (cfg, plugs, ops) => {
+		const out = JSON.parse(JSON.stringify(cfg))
+		out.channels ??= {}
+		const gone = new Set(ops.filter(o => o.type === 'del').map(o => `${o.id}@${o.version}`))
+		for (const p of plugs) {
+			const ch = out.channels[p.id]
+			if (!ch) continue
+			const left = p.versions.filter(v => !gone.has(`${p.id}@${v.version}`))
+			if (!left.length) { delete out.channels[p.id]; continue }
+			for (const [name, v] of Object.entries(ch)) if (gone.has(`${p.id}@${v}`)) delete ch[name]
+		}
+		for (const o of ops.filter(o => o.type === 'pin')) {
+			const p = plugs.find(x => x.id === o.id)
+			const left = p.versions.filter(v => !gone.has(`${p.id}@${v.version}`))
+			const auto = (left.find(v => !/-/.test(v.version)) || left[0])?.version
+			out.channels[o.id] ??= {}
+			if (o.version === auto) delete out.channels[o.id].latest
+			else out.channels[o.id].latest = o.version
+		}
+		for (const id of Object.keys(out.channels)) if (!Object.keys(out.channels[id]).length) delete out.channels[id]
+		return out
+	}
+	window.__planConfig = planConfig
+
+	/* ---------- apply ---------- */
+	const apply = async () => {
+		const dels = staged.filter(o => o.type === 'del')
+		const summary = staged.map(o => (o.type === 'del' ? `Delete ${o.id} v${o.version}` : `Make ${o.id} v${o.version} latest`)).join('\n')
+		if (!confirm(`Apply these changes to ${owner}/${repo}?\n\n${summary}\n\nDeleted versions are removed from the pool branch. This can't be undone from here.`)) return
+		busy = true; render()
+		try {
+			for (const o of dels) {
+				const path = `pool/${o.id}@${o.version}.zip`
+				try {
+					const file = await gh(`/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(branch)}`)
+					await gh(`/repos/${owner}/${repo}/contents/${path}`, { method: 'DELETE', body: JSON.stringify({ message: `Delete ${o.id}@${o.version}`, sha: file.sha, branch }) })
+					log(`Deleted ${path}`, 'okc')
+				} catch (e) {
+					if (e.status === 404) log(`${path} was already gone`)
+					else throw e
+				}
+			}
+
+			const cfgFile = await gh(`/repos/${owner}/${repo}/contents/repo.config.json?ref=${encodeURIComponent(mainBranch)}`)
+			const cfg = JSON.parse(fromB64(cfgFile.content))
+			const next = planConfig(cfg, plugins, staged)
+			if (JSON.stringify(next) !== JSON.stringify(cfg)) {
+				await gh(`/repos/${owner}/${repo}/contents/repo.config.json`, { method: 'PUT', body: JSON.stringify({ message: 'Update channel overrides', content: toB64(`${JSON.stringify(next, null, '\t')}\n`), sha: cfgFile.sha, branch: mainBranch }) })
+				log('Updated repo.config.json channel overrides', 'okc')
+			} else log('Channel overrides unchanged')
+
+			await gh(`/repos/${owner}/${repo}/actions/workflows/publish-index.yml/dispatches`, { method: 'POST', body: JSON.stringify({ ref: mainBranch }) })
+			log('Started the "Publish repository index" workflow')
+			await waitForIndex()
+		} catch (e) {
+			log(`Stopped: ${e.message}`, 'err')
+		} finally {
+			busy = false
+			render()
+		}
+	}
+
+	const waitForIndex = async () => {
+		for (let i = 0; i < 40; i++) {
+			await new Promise(r => setTimeout(r, 5000))
+			const { workflow_runs: runs } = await gh(`/repos/${owner}/${repo}/actions/workflows/publish-index.yml/runs?event=workflow_dispatch&per_page=1`)
+			const run = runs?.[0]
+			if (run?.status !== 'completed') continue
+			if (run.conclusion === 'success') {
+				log('Index published. GitHub Pages can take a minute or two to show it.', 'okc')
+				await load().catch(() => {})
+			} else log(`Workflow finished as "${run.conclusion}". Open ${run.html_url}`, 'err')
+			return
+		}
+		log('Still running. Check the Actions tab on GitHub.')
+	}
+
+	/* ---------- connect ---------- */
+	const connect = async () => {
+		token = $('token').value.trim()
+		const [o, r] = $('repo').value.trim().split('/')
+		owner = o; repo = r; branch = $('branch').value.trim() || 'gh-pages'
+		if (!token || !owner || !repo) return setStatus('Enter a token and the repository as owner/name.', 'err')
+		setStatus('Connecting…')
+		try {
+			const info = await gh(`/repos/${owner}/${repo}`)
+			if (!info.permissions?.push) throw new Error('This token can read the repository but not write to it.')
+			mainBranch = info.default_branch
+			await load()
+			if ($('remember').checked) localStorage.setItem(STORE, JSON.stringify({ token, repo: `${owner}/${repo}`, branch }))
+			else localStorage.removeItem(STORE)
+			setStatus(`Connected to ${info.full_name}.`, 'okc')
+			$('connect').hidden = true
+			$('app').hidden = false
+		} catch (e) {
+			setStatus(`Couldn't connect: ${e.message}`, 'err')
+		}
+	}
+
+	$('go').onclick = connect
+	$('apply').onclick = apply
+	$('discard').onclick = () => { staged = []; render() }
+
+	let saved = {}
+	try { saved = JSON.parse(localStorage.getItem(STORE) || '{}') } catch {}
+	$('repo').value = saved.repo || `${location.hostname.split('.')[0]}/${location.pathname.split('/')[1] || ''}`
+	if (saved.branch) $('branch').value = saved.branch
+	if (saved.token) { $('token').value = saved.token; $('remember').checked = true }
+})()
+</script>
+</body>
+</html>
