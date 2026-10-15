@@ -26,6 +26,29 @@
         }
       }
     },
+    "Staff.Tag.test.probe": {
+      "name": "Tag Probe",
+      "description": "Temporary helper: shows how Discord builds chat message rows, so a staff-tag plugin can be written.",
+      "author": "Evan Tanner",
+      "channels": {
+        "latest": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/Staff.Tag.test.probe@1.0.0.zip",
+          "sha256": "f926f05b5e006948174003e39a6e0388394ff91a616d0cab7e7be5729f509e85",
+          "size": 1569,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    },
     "coloradodevly.bundle-update-checker": {
       "name": "Bundle Update Checker",
       "description": "Prompts you to restart when a new Revenge bundle is published.",
