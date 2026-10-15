@@ -88,224 +88,13 @@
         }
       }
     },
-    "com.example.always-errors": {
-      "name": "Always Errors",
-      "description": "A plugin that always throws errors.",
-      "author": "Your Name <643945264868098049> (https://discord.com \"Website\")",
-      "icon": "CircleErrorIcon",
-      "channels": {
-        "latest": "1.0.0"
-      },
-      "versions": {
-        "1.0.0": {
-          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/com.example.always-errors@1.0.0.zip",
-          "sha256": "b3eed6d1854a389536159bec6ecb6ec95aa87d72efdca04aebd808c27dd609dc",
-          "size": 596,
-          "dependencies": {
-            "revenge.api": {
-              "version": ">=1 <2"
-            },
-            "discord": {
-              "version": "*"
-            }
-          }
-        }
-      }
-    },
-    "com.example.dependent": {
-      "name": "Example Dependent",
-      "description": "Depends on Example Library. Also installs the library.",
-      "author": "Your Name <643945264868098049> (https://discord.com \"Website\")",
-      "channels": {
-        "latest": "1.0.0"
-      },
-      "versions": {
-        "1.0.0": {
-          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/com.example.dependent@1.0.0.zip",
-          "sha256": "29544b29b17d8888c5861c361998a43b0c9a251ec08acb975123d9b69249a701",
-          "size": 637,
-          "dependencies": {
-            "revenge.api": {
-              "version": ">=1 <2"
-            },
-            "discord": {
-              "version": "*"
-            },
-            "com.example.library": {
-              "version": ">=1 <2"
-            }
-          }
-        }
-      }
-    },
-    "com.example.js-plugin": {
-      "name": "JS Plugin",
-      "description": "A JS-only example plugin without any native code.",
-      "author": "Your Name <643945264868098049> (https://discord.com \"Website\")",
-      "channels": {
-        "latest": "1.0.0"
-      },
-      "versions": {
-        "1.0.0": {
-          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/com.example.js-plugin@1.0.0.zip",
-          "sha256": "259b4daa384f857f2ec46e656664b08308cc9d66d3d76d5801e504a057ce26aa",
-          "size": 608,
-          "dependencies": {
-            "revenge.api": {
-              "version": ">=1 <2"
-            },
-            "discord": {
-              "version": "*"
-            }
-          }
-        }
-      }
-    },
-    "com.example.library": {
-      "name": "Example Library",
-      "description": "A plugin other plugins can depend on. See Example Dependent.",
-      "author": "Your Name <643945264868098049> (https://discord.com \"Website\")",
-      "channels": {
-        "latest": "1.0.0"
-      },
-      "versions": {
-        "1.0.0": {
-          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/com.example.library@1.0.0.zip",
-          "sha256": "49c9c684e036c042b7ba3a5dd6e90aee07b18a655877e751f56ffaa0322e24ed",
-          "size": 637,
-          "dependencies": {
-            "revenge.api": {
-              "version": ">=1 <2"
-            },
-            "discord": {
-              "version": "*"
-            }
-          }
-        }
-      }
-    },
-    "com.example.plugin": {
-      "name": "Example Plugin",
-      "description": "An example Revenge plugin built from the template.",
-      "author": "Your Name <643945264868098049> (https://discord.com \"Website\")",
-      "contributors": [
-        "Someone Else <669627189624307712> (mailto:support@discord.com)",
-        "Some Other Person"
-      ],
-      "channels": {
-        "latest": "1.0.0"
-      },
-      "versions": {
-        "1.0.0": {
-          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/com.example.plugin@1.0.0.zip",
-          "sha256": "1f80076bc520bf4a713a3b55f7c9c7c53d57028901f6017a1d82c8c532ea8dcf",
-          "size": 5757,
-          "dependencies": {
-            "revenge.api": {
-              "version": ">=1 <2"
-            },
-            "discord": {
-              "version": "*"
-            }
-          }
-        }
-      }
-    },
-    "dev.you.no-nsfw-gate": {
-      "name": "No NSFW Gate",
-      "description": "Skips the NSFW age-verification gate (discovery build).",
-      "author": "Tanner",
-      "channels": {
-        "latest": "0.3.2"
-      },
-      "versions": {
-        "0.1.0": {
-          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/dev.you.no-nsfw-gate@0.1.0.zip",
-          "sha256": "7b7940d9dfa7000b697ef4eec407ce4c13b667ff5d39b5d3f386d6872afb7ec9",
-          "size": 327,
-          "dependencies": {
-            "revenge.api": {
-              "version": ">=1"
-            },
-            "discord": {
-              "version": "*"
-            }
-          }
-        },
-        "0.2.0": {
-          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/dev.you.no-nsfw-gate@0.2.0.zip",
-          "sha256": "b9a2f1bc13d7244ddf12fe1ffe7361a9ed3e8c1373be7661ac2674c142286f0f",
-          "size": 1295,
-          "dependencies": {
-            "revenge.api": {
-              "version": ">=1"
-            },
-            "discord": {
-              "version": "*"
-            }
-          }
-        },
-        "0.2.1": {
-          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/dev.you.no-nsfw-gate@0.2.1.zip",
-          "sha256": "b91f1af8c68127b71d0214191d44c69bcd719ffec81ab3089eabacbf98b79187",
-          "size": 1218,
-          "dependencies": {
-            "revenge.api": {
-              "version": ">=1"
-            },
-            "discord": {
-              "version": "*"
-            }
-          }
-        },
-        "0.3.0": {
-          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/dev.you.no-nsfw-gate@0.3.0.zip",
-          "sha256": "d6ba1373c2ed9b9099ff4e821201d39b2a35432a4f2fffe34d617139a05e4c2f",
-          "size": 1183,
-          "dependencies": {
-            "revenge.api": {
-              "version": ">=1"
-            },
-            "discord": {
-              "version": "*"
-            }
-          }
-        },
-        "0.3.1": {
-          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/dev.you.no-nsfw-gate@0.3.1.zip",
-          "sha256": "e7e5cf436303a95fb39e6b47ed0b004269fb2835cf797924dfa5619fbc2fa6e7",
-          "size": 2073,
-          "dependencies": {
-            "revenge.api": {
-              "version": ">=1"
-            },
-            "discord": {
-              "version": "*"
-            }
-          }
-        },
-        "0.3.2": {
-          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/dev.you.no-nsfw-gate@0.3.2.zip",
-          "sha256": "d7a5e8a52caf6e3c5c717f4ed44f809e4bbec1f4966af3d6a06d34403f8eda33",
-          "size": 2298,
-          "dependencies": {
-            "revenge.api": {
-              "version": ">=1"
-            },
-            "discord": {
-              "version": "*"
-            }
-          }
-        }
-      }
-    },
     "evantannermeta.plugin-browser": {
       "name": "Plugin Browser",
       "description": "Browse and install plugins from the Revenge community repository.",
       "author": "EvanTannermeta (https://github.com/EvanTannermeta \"GitHub\")",
       "icon": "DownloadIcon",
       "channels": {
-        "latest": "1.0.1"
+        "latest": "1.0.2"
       },
       "versions": {
         "1.0.0": {
@@ -325,6 +114,19 @@
           "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantannermeta.plugin-browser@1.0.1.zip",
           "sha256": "94a1c907c29012a80e33c3db458c9a2b2af1b253fda8dadccf1419b2c5f63fab",
           "size": 4234,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "1.0.2": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantannermeta.plugin-browser@1.0.2.zip",
+          "sha256": "9160eab236cb0d931d4138b7fdc5b7543ba6b7eea0431b645a1d26aeb9838c11",
+          "size": 4350,
           "dependencies": {
             "revenge.api": {
               "version": ">=1 <2"
