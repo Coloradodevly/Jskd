@@ -2,7 +2,7 @@ import { reloadApp } from '@revenge-mod/modules/native/app'
 import { Alert } from 'react-native'
 
 const BUNDLE_URL =
-	'https://coloradodevly.github.io/revenge-next-bundle/revenge.bundle'
+	'https://evantannermeta.github.io/revenge-next-bundle/revenge.bundle'
 
 // How often to poll while Discord is open.
 const CHECK_INTERVAL_MS = 15 * 60 * 1000
