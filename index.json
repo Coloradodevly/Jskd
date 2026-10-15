@@ -134,6 +134,29 @@
         }
       }
     },
+    "evantanner.staff-tags": {
+      "name": "Staff Tags",
+      "description": "Shows a tag next to the username of anyone with the Administrator permission. Tags can be customized per person.",
+      "author": "Evan Tanner",
+      "channels": {
+        "latest": "1.0.1"
+      },
+      "versions": {
+        "1.0.1": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.staff-tags@1.0.1.zip",
+          "sha256": "2930750704120fe08677a1decb98555c9f834ff0ad7e4da854e5dd52b9b03acf",
+          "size": 2447,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    },
     "evantannermeta.plugin-browser": {
       "name": "Plugin Browser",
       "description": "Browse and install plugins from the Revenge community repository.",
