@@ -6,15 +6,28 @@
     "coloradodevly.bundle-update-checker": {
       "name": "Bundle Update Checker",
       "description": "Prompts you to restart when a new Revenge bundle is published.",
-      "author": "Coloradodevly",
+      "author": "Evan Tanner",
       "channels": {
-        "latest": "1.0.0"
+        "latest": "1.0.1"
       },
       "versions": {
         "1.0.0": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/coloradodevly.bundle-update-checker@1.0.0.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/coloradodevly.bundle-update-checker@1.0.0.zip",
           "sha256": "4b0d723d9418233e6a17e3446bcd2da16ad08d2650c73d77a2befc7b060f2cec",
           "size": 962,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "1.0.1": {
+          "url": "https://evantannermeta.github.io/Jskd/pool/coloradodevly.bundle-update-checker@1.0.1.zip",
+          "sha256": "05c3697c86e9ce356d92bad76a856469a08f5295fb7b06af197da5c95d94f574",
+          "size": 964,
           "dependencies": {
             "revenge.api": {
               "version": ">=1 <2"
@@ -36,7 +49,7 @@
       },
       "versions": {
         "1.0.0": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/com.example.always-errors@1.0.0.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/com.example.always-errors@1.0.0.zip",
           "sha256": "b3eed6d1854a389536159bec6ecb6ec95aa87d72efdca04aebd808c27dd609dc",
           "size": 596,
           "dependencies": {
@@ -59,7 +72,7 @@
       },
       "versions": {
         "1.0.0": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/com.example.dependent@1.0.0.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/com.example.dependent@1.0.0.zip",
           "sha256": "29544b29b17d8888c5861c361998a43b0c9a251ec08acb975123d9b69249a701",
           "size": 637,
           "dependencies": {
@@ -85,7 +98,7 @@
       },
       "versions": {
         "1.0.0": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/com.example.js-plugin@1.0.0.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/com.example.js-plugin@1.0.0.zip",
           "sha256": "259b4daa384f857f2ec46e656664b08308cc9d66d3d76d5801e504a057ce26aa",
           "size": 608,
           "dependencies": {
@@ -108,7 +121,7 @@
       },
       "versions": {
         "1.0.0": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/com.example.library@1.0.0.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/com.example.library@1.0.0.zip",
           "sha256": "49c9c684e036c042b7ba3a5dd6e90aee07b18a655877e751f56ffaa0322e24ed",
           "size": 637,
           "dependencies": {
@@ -135,7 +148,7 @@
       },
       "versions": {
         "1.0.0": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/com.example.plugin@1.0.0.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/com.example.plugin@1.0.0.zip",
           "sha256": "1f80076bc520bf4a713a3b55f7c9c7c53d57028901f6017a1d82c8c532ea8dcf",
           "size": 5757,
           "dependencies": {
@@ -158,7 +171,7 @@
       },
       "versions": {
         "0.1.0": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.1.0.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.1.0.zip",
           "sha256": "7b7940d9dfa7000b697ef4eec407ce4c13b667ff5d39b5d3f386d6872afb7ec9",
           "size": 327,
           "dependencies": {
@@ -171,7 +184,7 @@
           }
         },
         "0.2.0": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.2.0.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.2.0.zip",
           "sha256": "b9a2f1bc13d7244ddf12fe1ffe7361a9ed3e8c1373be7661ac2674c142286f0f",
           "size": 1295,
           "dependencies": {
@@ -184,7 +197,7 @@
           }
         },
         "0.2.1": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.2.1.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.2.1.zip",
           "sha256": "b91f1af8c68127b71d0214191d44c69bcd719ffec81ab3089eabacbf98b79187",
           "size": 1218,
           "dependencies": {
@@ -197,7 +210,7 @@
           }
         },
         "0.3.0": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.3.0.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.3.0.zip",
           "sha256": "d6ba1373c2ed9b9099ff4e821201d39b2a35432a4f2fffe34d617139a05e4c2f",
           "size": 1183,
           "dependencies": {
@@ -210,7 +223,7 @@
           }
         },
         "0.3.1": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.3.1.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.3.1.zip",
           "sha256": "e7e5cf436303a95fb39e6b47ed0b004269fb2835cf797924dfa5619fbc2fa6e7",
           "size": 2073,
           "dependencies": {
@@ -223,7 +236,7 @@
           }
         },
         "0.3.2": {
-          "url": "https://coloradodevly.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.3.2.zip",
+          "url": "https://evantannermeta.github.io/Jskd/pool/dev.you.no-nsfw-gate@0.3.2.zip",
           "sha256": "d7a5e8a52caf6e3c5c717f4ed44f809e4bbec1f4966af3d6a06d34403f8eda33",
           "size": 2298,
           "dependencies": {
