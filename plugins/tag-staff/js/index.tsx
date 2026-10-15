@@ -199,6 +199,54 @@ function searchEmojis(query: string): FoundEmoji[] {
 	return out.slice(0, MAX_RESULTS)
 }
 
+// User finder: looks through the users Discord has cached on this device.
+
+interface FoundUser {
+	id: string
+	username: string
+	displayName: string
+}
+
+function searchUsers(query: string): FoundUser[] {
+	const q = query.trim().toLowerCase().replace(/^@/, '')
+	if (!q) return []
+
+	const scored: { score: number; user: FoundUser }[] = []
+	try {
+		const users: Record<string, any> = (Stores as any).UserStore?.getUsers?.() ?? {}
+
+		for (const u of Object.values(users)) {
+			const username: string = u?.username ?? ''
+			const globalName: string = u?.globalName ?? u?.global_name ?? ''
+			const fields = [username.toLowerCase(), globalName.toLowerCase()]
+
+			let score = -1
+			if (u.id === q) score = 4
+			else if (fields.includes(q)) score = 3
+			else if (fields.some(f => f.startsWith(q))) score = 2
+			else if (fields.some(f => f.includes(q))) score = 1
+			if (score < 0) continue
+
+			scored.push({
+				score,
+				user: {
+					id: u.id,
+					username,
+					displayName: globalName || username,
+				},
+			})
+		}
+	} catch (e) {
+		warnOnce('user-search', 'User search failed:', String(e))
+	}
+
+	scored.sort(
+		(a, b) =>
+			b.score - a.score || a.user.displayName.localeCompare(b.user.displayName),
+	)
+	return scored.slice(0, MAX_RESULTS).map(r => r.user)
+}
+
 // ---------------------------------------------------------------------------
 // Row patch
 // ---------------------------------------------------------------------------
@@ -273,6 +321,8 @@ export default plugin({
 		const [error, setError] = useState('')
 		const [emojiQuery, setEmojiQuery] = useState('')
 		const emojiResults = useMemo(() => searchEmojis(emojiQuery), [emojiQuery])
+		const [userQuery, setUserQuery] = useState('')
+		const userResults = useMemo(() => searchUsers(userQuery), [userQuery])
 
 		const saveOverrides = (next: Record<string, string>) =>
 			storage.set({ overrides: JSON.stringify(next) })
@@ -331,6 +381,53 @@ export default plugin({
 						))
 					)}
 				</TableRowGroup>
+
+				<TableRowGroup title="User finder">
+					<TextInput
+						label="Search by username or display name"
+						size="md"
+						placeholder="e.g. evantannermeta"
+						value={userQuery}
+						onChange={(v: string) => setUserQuery(v)}
+					/>
+				</TableRowGroup>
+
+				{userQuery.trim() && userResults.length === 0 ? (
+					<Text variant="text-sm/medium">
+						No cached user matches that. Users appear here once Discord has
+						loaded them (for example, after you open a channel they chatted in).
+					</Text>
+				) : null}
+
+				{userResults.map(user => (
+					<Card key={user.id}>
+						<Stack spacing={6}>
+							<Text variant="text-md/semibold">{user.displayName}</Text>
+							<Text variant="text-sm/medium" selectable>
+								@{user.username} · {user.id}
+							</Text>
+							<Stack spacing={8} direction="horizontal">
+								<Button
+									text="Use in form below"
+									variant="secondary"
+									size="sm"
+									onPress={() => {
+										setNewId(user.id)
+										setError('')
+									}}
+								/>
+								<Button
+									text="Add with default tag"
+									variant="secondary"
+									size="sm"
+									onPress={() =>
+										saveOverrides({ ...overrides, [user.id]: '' })
+									}
+								/>
+							</Stack>
+						</Stack>
+					</Card>
+				))}
 
 				<TableRowGroup title="Add custom tag">
 					<TextInput
