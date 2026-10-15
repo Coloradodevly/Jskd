@@ -4,7 +4,7 @@
 	"name": "Staff Tags",
 	"description": "Shows a tag next to the username of anyone with the Administrator permission. Tags can be customized per person.",
 	"author": "Evan Tanner",
-	"version": "1.0.1",
+	"version": "1.1.0",
 	"dependencies": {
 		"revenge.api": { "version": ">=1 <2" },
 		"discord": { "version": "*" }
