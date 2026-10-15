@@ -1,6 +1,6 @@
 {
 	"format": 1,
-	"id": "coloradodevly.bundle-update-checker",
+	"id": "EvanTanner.bundle-update-checker",
 	"name": "Bundle Update Checker",
 	"description": "Prompts you to restart when a new Revenge bundle is published.",
 	"author": "Evan Tanner",
