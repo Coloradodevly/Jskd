@@ -88,6 +88,29 @@
         }
       }
     },
+    "com.example.tag-probe": {
+      "name": "Tag Probe",
+      "description": "Temporary helper: shows how Discord builds chat message rows, so a staff-tag plugin can be written.",
+      "author": "Your Name",
+      "channels": {
+        "latest": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/com.example.tag-probe@1.0.0.zip",
+          "sha256": "927a2f7efde39da8c6865a3b3443f121a1778e663b30decc622cc92310936b4a",
+          "size": 1572,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    },
     "evantannermeta.plugin-browser": {
       "name": "Plugin Browser",
       "description": "Browse and install plugins from the Revenge community repository.",
