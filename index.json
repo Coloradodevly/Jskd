@@ -6,9 +6,9 @@
     "coloradodevly.bundle-update-checker": {
       "name": "Bundle Update Checker",
       "description": "Prompts you to restart when a new Revenge bundle is published.",
-      "author": "Coloradodevly",
+      "author": "Evan Tanner",
       "channels": {
-        "latest": "1.0.2"
+        "latest": "1.0.3"
       },
       "versions": {
         "1.0.0": {
@@ -41,6 +41,19 @@
           "url": "https://evantannermeta.github.io/Jskd/pool/coloradodevly.bundle-update-checker@1.0.2.zip",
           "sha256": "5e096341fe948ec221070a97f96bc0329e482466e59f5e9115a0dec511d9a530",
           "size": 962,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "1.0.3": {
+          "url": "https://evantannermeta.github.io/Jskd/pool/coloradodevly.bundle-update-checker@1.0.3.zip",
+          "sha256": "c9a9222a89f546a73cf4ec17b2588bacc4c2252bd2c9f5c752e3d3958e264373",
+          "size": 2234,
           "dependencies": {
             "revenge.api": {
               "version": ">=1 <2"
