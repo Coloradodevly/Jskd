@@ -141,6 +141,8 @@ export default plugin({
 					{s.useCustomUrl ? (
 						<View style={{ padding: 12 }}>
 							<Design.TextInput
+								label="Custom bundle link"
+								size="md"
 								placeholder={DEFAULT_URL}
 								value={s.customUrl}
 								onChange={(v: string) => storage.set({ customUrl: v })}
@@ -155,6 +157,7 @@ export default plugin({
 
 				<View>
 					<Design.Button
+						variant="primary"
 						text="Test update prompt"
 						onPress={() => showUpdatePrompt(true, () => {})}
 					/>
