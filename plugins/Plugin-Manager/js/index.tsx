@@ -24,7 +24,9 @@ import {
 	listUpdates,
 	planInstall,
 	refreshAllRepos,
+	refreshRepo,
 	selectSafeUpdates,
+	setRepos,
 	updatePlugins,
 } from '@revenge-mod/plugins/_/repositories'
 import { formatVersion } from '@revenge-mod/plugins/utils'
@@ -33,6 +35,7 @@ import { ScrollView, View } from 'react-native'
 import type { AnyPlugin } from '@revenge-mod/plugins/_'
 import type {
 	InstallPlan,
+	Repo,
 	PluginUpdate,
 	RepoPluginListing,
 } from '@revenge-mod/plugins/_/repositories'
@@ -445,7 +448,35 @@ interface BrowseEntry {
 	repoName: string | null
 }
 
-async function loadBrowse(refresh: boolean): Promise<BrowseEntry[]> {
+const COMMUNITY_REPO = 'https://revenge-mod.github.io/revenge-community-plugins'
+
+const normalizeUrl = (url: string) => url.replace(/\/+$/, '').toLowerCase()
+
+/**
+ * Makes sure the community repository is in Revenge's repository list.
+ * Only adds it when missing (a repo you disabled yourself stays disabled), and puts it
+ * first, like Revenge's own default repository. Your other repositories are kept as they are.
+ */
+async function ensureCommunityRepo(): Promise<Repo[]> {
+	const repos = await listRepos()
+	const target = normalizeUrl(COMMUNITY_REPO)
+
+	if (repos.some(r => normalizeUrl(r.url) === target)) return repos
+
+	const userRepos = repos
+		.filter(r => !r.internal)
+		.map(({ url, enabled }) => ({ url, enabled }))
+
+	await setRepos([{ url: COMMUNITY_REPO, enabled: true }, ...userRepos])
+	await refreshRepo(COMMUNITY_REPO).catch(noop)
+
+	return listRepos()
+}
+
+async function loadBrowse(
+	refresh: boolean,
+): Promise<{ entries: BrowseEntry[]; repos: Repo[] }> {
+	await ensureCommunityRepo()
 	if (refresh) await refreshAllRepos()
 
 	const repos = (await listRepos()).filter(r => r.enabled)
@@ -461,7 +492,8 @@ async function loadBrowse(refresh: boolean): Promise<BrowseEntry[]> {
 		}
 	}
 
-	return entries.sort((a, b) => a.listing.name.localeCompare(b.listing.name))
+	entries.sort((a, b) => a.listing.name.localeCompare(b.listing.name))
+	return { entries, repos }
 }
 
 function describePlan(plan: InstallPlan) {
@@ -477,6 +509,7 @@ function BrowseTab() {
 	const tick = usePluginListTick()
 
 	const [entries, setEntries] = useState<BrowseEntry[] | null>(null)
+	const [repos, setRepoList] = useState<Repo[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [query, setQuery] = useState('')
@@ -486,7 +519,9 @@ function BrowseTab() {
 		setLoading(true)
 		setError(null)
 		try {
-			setEntries(await loadBrowse(refresh))
+			const result = await loadBrowse(refresh)
+			setEntries(result.entries)
+			setRepoList(result.repos)
 		} catch (e) {
 			setError(errorText(e))
 		} finally {
@@ -552,6 +587,13 @@ function BrowseTab() {
 					onPress={() => load(true)}
 				/>
 			</Stack>
+
+			{repos.length ? (
+				<Text variant="text-sm/medium" color="text-muted">
+					Searching {repos.length} repositor{repos.length === 1 ? 'y' : 'ies'}:{' '}
+					{repos.map(r => r.name ?? r.url).join(', ')}
+				</Text>
+			) : null}
 
 			{error ? (
 				<Text variant="text-md/medium" color="text-danger">
