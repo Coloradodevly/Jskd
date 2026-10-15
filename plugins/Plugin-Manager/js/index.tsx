@@ -29,7 +29,10 @@ import {
 	setRepos,
 	updatePlugins,
 } from '@revenge-mod/plugins/_/repositories'
-import { formatVersion } from '@revenge-mod/plugins/utils'
+import {
+	formatVersion,
+	getPluginContributorName,
+} from '@revenge-mod/plugins/utils'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ScrollView, View } from 'react-native'
 import type { AnyPlugin } from '@revenge-mod/plugins/_'
@@ -94,6 +97,21 @@ function confirm(title: string, content: string, confirmText: string) {
 			{ text: 'Cancel', variant: 'secondary', onPress: () => resolve(false) },
 		]),
 	)
+}
+
+/** "Palm <123> (https://...)" -> "Palm" */
+function nameOf(contributor?: string | null) {
+	if (!contributor) return null
+	try {
+		return getPluginContributorName(contributor)
+	} catch {
+		return contributor
+	}
+}
+
+function formatSize(bytes?: number) {
+	if (!bytes) return null
+	return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
 }
 
 function versionOf(plugin: AnyPlugin) {
@@ -254,11 +272,16 @@ function InstalledPluginCard({
 		.filter(Boolean)
 		.join(' · ')
 
+	const author = nameOf(plugin.manifest.author)
+
 	return (
 		<Card>
-			<Stack spacing={8}>
-				<Text variant="heading-md/semibold">
-					{plugin.manifest.name} <Text variant="text-sm/medium" color="text-muted">v{versionOf(plugin)}</Text>
+			<Stack spacing={6}>
+				<Text variant="heading-md/semibold">{plugin.manifest.name}</Text>
+				<Text variant="text-sm/medium" color="text-muted">
+					{[`v${versionOf(plugin)}`, author ? `by ${author}` : null]
+						.filter(Boolean)
+						.join(' · ')}
 				</Text>
 				{plugin.manifest.description ? (
 					<Text variant="text-md/medium">{plugin.manifest.description}</Text>
@@ -616,21 +639,27 @@ function BrowseTab() {
 
 				return (
 					<Card key={listing.id}>
-						<Stack spacing={8}>
-							<Text variant="heading-md/semibold">
-								{listing.name}{' '}
-								{latest ? (
-									<Text variant="text-sm/medium" color="text-muted">
-										v{latest}
-									</Text>
-								) : null}
+						<Stack spacing={6}>
+							<Text variant="heading-md/semibold">{listing.name}</Text>
+							<Text variant="text-sm/medium" color="text-muted">
+								{[
+									latest ? `v${latest}` : null,
+									formatSize(listing.versions[latest ?? '']?.size),
+									nameOf(listing.author)
+										? `by ${nameOf(listing.author)}`
+										: null,
+								]
+									.filter(Boolean)
+									.join(' · ')}
 							</Text>
 							{listing.description ? (
 								<Text variant="text-md/medium">{listing.description}</Text>
 							) : null}
-							<Text variant="text-sm/medium" color="text-muted">
-								{[listing.author, entry.repoName].filter(Boolean).join(' · ')}
-							</Text>
+							{entry.repoName ? (
+								<Text variant="text-xs/medium" color="text-muted">
+									{entry.repoName}
+								</Text>
+							) : null}
 							<Button
 								text={installed ? 'Installed' : 'Install'}
 								variant={installed ? 'secondary' : 'primary'}
