@@ -3,6 +3,29 @@
   "name": "My Plugin Repository",
   "description": "Example plugin repository from the Revenge plugin template.",
   "plugins": {
+    "EvanTanner.bundle-update-checker": {
+      "name": "Bundle Update Checker",
+      "description": "Prompts you to restart when a new Revenge bundle is published.",
+      "author": "Evan Tanner",
+      "channels": {
+        "latest": "1.0.3"
+      },
+      "versions": {
+        "1.0.3": {
+          "url": "https://evantannermeta.github.io/Jskd/pool/EvanTanner.bundle-update-checker@1.0.3.zip",
+          "sha256": "575350fe8a679eaec07d75f8686ff3d279dfb7188bd61e5d1eea3c84e7c2aafc",
+          "size": 2228,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    },
     "coloradodevly.bundle-update-checker": {
       "name": "Bundle Update Checker",
       "description": "Prompts you to restart when a new Revenge bundle is published.",
