@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evan's Revenge Plugins</title>
+<meta name="description" content="Plugins for Revenge, the Discord mobile client mod. Copy the repository link, then install from inside Revenge.">
+<meta name="theme-color" content="#14161f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%A9%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+	color-scheme: dark;
+	--bg: #14161f;
+	--surface: #1c1f2e;
+	--surface-2: #242840;
+	--line: #2f3350;
+	--text: #e9eaf4;
+	--muted: #9a9fbd;
+	--accent: #8b8cff;
+	--accent-ink: #14161f;
+	--warm: #ffb86b;
+	--ok: #7be0a8;
+	--display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+	--body: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: light) {
+	:root {
+		color-scheme: light;
+		--bg: #f6f6fb;
+		--surface: #ffffff;
+		--surface-2: #ecedf8;
+		--line: #d9dbee;
+		--text: #1a1c2e;
+		--muted: #5d6280;
+		--accent: #4a4bd6;
+		--accent-ink: #ffffff;
+		--warm: #a85a00;
+		--ok: #11794a;
+	}
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font: 400 1rem/1.55 var(--body);
+	padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
+}
+a { color: var(--accent); text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+.wrap { max-width: 44rem; margin: 0 auto; padding: 0 1.25rem; }
+
+/* Hero */
+header { padding: 3.25rem 0 2rem; }
+h1 {
+	font: 800 clamp(2.4rem, 11vw, 4rem)/0.98 var(--display);
+	letter-spacing: -0.03em;
+	margin: 0 0 0.9rem;
+	text-wrap: balance;
+}
+.lede { color: var(--muted); font-size: 1.1rem; max-width: 34rem; margin: 0 0 1.75rem; }
+
+.addbox {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	padding: 1rem;
+}
+.addbox label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+.addrow { display: flex; gap: 0.5rem; }
+.addrow input {
+	flex: 1; min-width: 0;
+	font: 500 0.95rem var(--body);
+	color: var(--text);
+	background: var(--bg);
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	padding: 0.75rem 0.85rem;
+}
+button {
+	font: 600 0.95rem var(--body);
+	cursor: pointer;
+	border: 0;
+	border-radius: 10px;
+	padding: 0.75rem 1.1rem;
+	background: var(--accent);
+	color: var(--accent-ink);
+}
+button:active { transform: translateY(1px); }
+.steps { margin: 0.9rem 0 0; padding-left: 1.2rem; color: var(--muted); font-size: 0.95rem; }
+.steps li { margin: 0.15rem 0; }
+.steps b { color: var(--text); font-weight: 600; }
+
+/* Search + list */
+.listhead { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin: 2.25rem 0 0.75rem; }
+h2 { font: 800 1.6rem/1.1 var(--display); letter-spacing: -0.02em; margin: 0; }
+.count { color: var(--muted); font-size: 0.95rem; }
+.search {
+	width: 100%;
+	font: 500 1rem var(--body);
+	color: var(--text);
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	padding: 0.8rem 0.9rem;
+	margin-bottom: 1rem;
+}
+.search::placeholder { color: var(--muted); }
+
+.plugin {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	padding: 1.1rem 1.1rem 0.5rem;
+	margin-bottom: 0.9rem;
+}
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+h3 { font: 700 1.25rem/1.2 var(--display); margin: 0; letter-spacing: -0.01em; }
+.ver {
+	flex: none;
+	font: 600 0.85rem var(--body);
+	color: var(--warm);
+	background: var(--surface-2);
+	border-radius: 999px;
+	padding: 0.2rem 0.7rem;
+}
+.desc { margin: 0.45rem 0 0.7rem; color: var(--text); }
+.meta { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; color: var(--muted); font-size: 0.9rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.7rem; }
+.chip { font-size: 0.8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.6rem; }
+
+details { margin-top: 0.8rem; border-top: 1px solid var(--line); }
+summary { cursor: pointer; padding: 0.75rem 0; font-weight: 600; color: var(--accent); list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "+"; display: inline-block; width: 1.1rem; }
+details[open] summary::before { content: "−"; }
+.vrow { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.55rem 0; border-top: 1px dashed var(--line); font-size: 0.92rem; }
+.vrow:first-of-type { border-top: 0; }
+.vrow .sub { color: var(--muted); font-size: 0.82rem; }
+.vrow .latest { color: var(--ok); font-weight: 600; font-size: 0.8rem; margin-left: 0.4rem; }
+details .id { color: var(--muted); font-size: 0.82rem; padding: 0.2rem 0 0.8rem; overflow-wrap: anywhere; }
+
+.state { color: var(--muted); padding: 1.5rem 0; }
+.state.error { color: var(--warm); }
+footer { padding: 2.5rem 0 3rem; color: var(--muted); font-size: 0.9rem; }
+
+.toast {
+	position: fixed; left: 50%; bottom: calc(1.25rem + env(safe-area-inset-bottom, 0));
+	transform: translateX(-50%);
+	background: var(--text); color: var(--bg);
+	padding: 0.6rem 1rem; border-radius: 10px; font-weight: 600; font-size: 0.92rem;
+	opacity: 0; pointer-events: none; transition: opacity 0.15s;
+}
+.toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } button:active { transform: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+	<header>
+		<h1 id="title">Evan's Revenge plugins</h1>
+		<p class="lede" id="lede">Plugins for Revenge, the Discord mobile client mod. Add this repository inside Revenge, then install what you want.</p>
+
+		<div class="addbox">
+			<label for="repo-url">Repository link</label>
+			<div class="addrow">
+				<input id="repo-url" type="text" readonly value="" aria-describedby="how">
+				<button id="copy" type="button">Copy link</button>
+			</div>
+			<ol class="steps" id="how">
+				<li>Copy the link above.</li>
+				<li>In Revenge, open <b>Plugins</b> and add a repository.</li>
+				<li>Paste the link, then install any plugin below.</li>
+			</ol>
+		</div>
+	</header>
+
+	<main>
+		<div class="listhead">
+			<h2>Plugins</h2>
+			<span class="count" id="count" aria-live="polite"></span>
+		</div>
+		<input class="search" id="search" type="search" placeholder="Search by name, author or id" aria-label="Search plugins" autocomplete="off" hidden>
+		<div id="list"><p class="state">Loading plugins…</p></div>
+	</main>
+
+	<footer>
+		Made by <a href="https://github.com/EvanTannermeta">Evan Tanner</a>. Install plugins only from authors you trust.
+	</footer>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+	const $ = id => document.getElementById(id)
+	const INDEX_URL = new URL('index.json', location.href).href
+
+	$('repo-url').value = INDEX_URL
+
+	/* ---------- helpers ---------- */
+	const el = (tag, props = {}, ...kids) => {
+		const n = document.createElement(tag)
+		for (const [k, v] of Object.entries(props)) {
+			if (k === 'class') n.className = v
+			else if (v !== undefined && v !== null) n.setAttribute(k, v)
+		}
+		for (const kid of kids.flat()) {
+			if (kid == null || kid === false) continue
+			n.append(kid.nodeType ? kid : document.createTextNode(String(kid)))
+		}
+		return n
+	}
+
+	const formatSize = bytes => {
+		if (!Number.isFinite(bytes)) return ''
+		if (bytes < 1024) return `${bytes} B`
+		if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`
+		return `${(bytes / 1048576).toFixed(1)} MB`
+	}
+
+	// "Name (https://link "Label")" is how some manifests write an author link.
+	const parseAuthor = raw => {
+		const m = /^(.*?)\s*\((https?:\/\/[^\s)]+)(?:\s+"[^"]*")?\)\s*$/.exec(raw || '')
+		return m ? { name: m[1].trim() || 'Unknown', url: m[2] } : { name: raw || 'Unknown' }
+	}
+
+	const compareVersions = (a, b) => {
+		const pa = a.split(/[.+-]/).map(Number)
+		const pb = b.split(/[.+-]/).map(Number)
+		for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+			const d = (pa[i] || 0) - (pb[i] || 0)
+			if (d) return d
+		}
+		return 0
+	}
+
+	const toast = msg => {
+		const t = $('toast')
+		t.textContent = msg
+		t.classList.add('show')
+		clearTimeout(toast.timer)
+		toast.timer = setTimeout(() => t.classList.remove('show'), 1800)
+	}
+
+	$('copy').addEventListener('click', async () => {
+		const input = $('repo-url')
+		try {
+			await navigator.clipboard.writeText(input.value)
+			toast('Link copied')
+		} catch {
+			input.focus()
+			input.select()
+			toast('Press and hold to copy')
+		}
+	})
+
+	/* ---------- rendering ---------- */
+	let plugins = []
+
+	const normalize = data =>
+		Object.entries(data.plugins || {})
+			.map(([id, p]) => {
+				const versions = Object.entries(p.versions || {})
+					.map(([version, v]) => ({ version, ...v }))
+					.sort((a, b) => compareVersions(b.version, a.version))
+				const latestTag = p.channels?.latest
+				const latest = versions.find(v => v.version === latestTag) || versions[0]
+				return { id, ...p, versions, latest, author: parseAuthor(p.author) }
+			})
+			.filter(p => p.latest)
+			.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
+
+	const pluginView = p => {
+		const deps = Object.entries(p.latest.dependencies || {})
+		const authorNode = p.author.url
+			? el('a', { href: p.author.url, rel: 'noopener' }, p.author.name)
+			: p.author.name
+
+		return el('section', { class: 'plugin' },
+			el('div', { class: 'top' },
+				el('h3', {}, p.name || p.id),
+				el('span', { class: 'ver' }, `v${p.latest.version}`)),
+			p.description ? el('p', { class: 'desc' }, p.description) : null,
+			el('div', { class: 'meta' },
+				el('span', {}, 'By ', authorNode),
+				p.latest.size ? el('span', {}, formatSize(p.latest.size)) : null,
+				el('span', {}, `${p.versions.length} ${p.versions.length === 1 ? 'release' : 'releases'}`)),
+			deps.length
+				? el('div', { class: 'chips' }, deps.map(([name, d]) =>
+						el('span', { class: 'chip' }, d.version && d.version !== '*' ? `${name} ${d.version}` : name)))
+				: null,
+			el('details', {},
+				el('summary', {}, 'Versions and downloads'),
+				p.versions.map(v =>
+					el('div', { class: 'vrow' },
+						el('div', {},
+							el('div', {}, `v${v.version}`,
+								v.version === p.latest.version ? el('span', { class: 'latest' }, 'latest') : null),
+							el('div', { class: 'sub', title: v.sha256 || '' },
+								[formatSize(v.size), v.sha256 ? `sha256 ${v.sha256.slice(0, 10)}…` : '']
+									.filter(Boolean).join('  '))),
+						v.url ? el('a', { href: v.url, download: '' }, 'Download zip') : null)),
+				el('div', { class: 'id' }, `Plugin id: ${p.id}`)))
+	}
+
+	const render = () => {
+		const q = $('search').value.trim().toLowerCase()
+		const shown = q
+			? plugins.filter(p =>
+					[p.name, p.id, p.description, p.author.name].some(s => (s || '').toLowerCase().includes(q)))
+			: plugins
+
+		$('count').textContent = q ? `${shown.length} of ${plugins.length}` : `${plugins.length} available`
+
+		const list = $('list')
+		list.replaceChildren()
+		if (!shown.length) {
+			list.append(el('p', { class: 'state' }, `No plugin matches "${$('search').value.trim()}". Clear the search to see all ${plugins.length}.`))
+			return
+		}
+		for (const p of shown) list.append(pluginView(p))
+	}
+
+	/* ---------- load ---------- */
+	fetch(INDEX_URL, { cache: 'no-cache' })
+		.then(res => {
+			if (!res.ok) throw new Error(`The server answered ${res.status}.`)
+			return res.json()
+		})
+		.then(data => {
+			if (data.name) {
+				$('title').textContent = data.name
+				document.title = data.name
+			}
+			if (data.description) $('lede').textContent = data.description
+			plugins = normalize(data)
+			$('search').hidden = plugins.length < 4
+			$('search').addEventListener('input', render)
+			render()
+		})
+		.catch(err => {
+			$('list').replaceChildren(
+				el('p', { class: 'state error' }, `Couldn't load the plugin list. ${err.message} Check your connection and reload.`))
+		})
+})()
+</script>
+</body>
+</html>
