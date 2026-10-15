@@ -1,0 +1,20 @@
+{
+	"format": 1,
+	"id": "evantannermeta.plugin-browser",
+	"name": "Plugin Browser",
+	"description": "Browse and install plugins from the Revenge community repository.",
+	"icon": "DownloadIcon",
+	"author": "EvanTannermeta (https://github.com/EvanTannermeta \"GitHub\")",
+	"version": "1.0.0",
+	"dependencies": {
+		"revenge.api": {
+			"version": ">=1 <2"
+		},
+		"discord": {
+			"version": "*"
+		}
+	},
+	"dist": {
+		"script": "index.js"
+	}
+}
