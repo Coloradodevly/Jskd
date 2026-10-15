@@ -201,7 +201,8 @@ footer { padding: 2.5rem 0 3rem; color: var(--muted); font-size: 0.9rem; }
 	const $ = id => document.getElementById(id)
 	const INDEX_URL = new URL('index.json', location.href).href
 
-	$('repo-url').value = INDEX_URL
+	// Revenge wants the folder address (ending in /), not the index.json file.
+	$('repo-url').value = new URL('./', location.href).href
 
 	/* ---------- helpers ---------- */
 	const el = (tag, props = {}, ...kids) => {
