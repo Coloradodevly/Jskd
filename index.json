@@ -139,13 +139,26 @@
       "description": "Shows a tag next to the username of anyone with the Administrator permission. Tags can be customized per person.",
       "author": "Evan Tanner",
       "channels": {
-        "latest": "1.0.1"
+        "latest": "1.1.0"
       },
       "versions": {
         "1.0.1": {
           "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.staff-tags@1.0.1.zip",
           "sha256": "2930750704120fe08677a1decb98555c9f834ff0ad7e4da854e5dd52b9b03acf",
           "size": 2447,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "1.1.0": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.staff-tags@1.1.0.zip",
+          "sha256": "68b1fd1edc8a11a3addfd1c7074fb1182e701ab6645180d8209a9a94dbcfd4a6",
+          "size": 2720,
           "dependencies": {
             "revenge.api": {
               "version": ">=1 <2"
