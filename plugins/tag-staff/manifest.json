@@ -1,9 +1,9 @@
 {
 	"format": 1,
-	"id": "com.example.tag-probe",
+	"id": "Staff.Tag.test.probe",
 	"name": "Tag Probe",
 	"description": "Temporary helper: shows how Discord builds chat message rows, so a staff-tag plugin can be written.",
-	"author": "Your Name",
+	"author": "Evan Tanner",
 	"version": "1.0.0",
 	"dependencies": {
 		"revenge.api": { "version": ">=1 <2" },
