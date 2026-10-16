@@ -2,9 +2,9 @@
 	"format": 1,
 	"id": "evantanner.message-logger",
 	"name": "Message Logger",
-	"description": "Keeps deleted messages on screen in red, saves a log with attachments and export, and warns you about ghost pings.",
+	"description": "Keeps deleted messages on screen in red, shows what edited messages said before, saves a log with attachments and export, and warns you about ghost pings.",
 	"author": "Evan Tanner",
-	"version": "1.4.1",
+	"version": "1.5.0",
 	"dependencies": {
 		"revenge.api": {
 			"version": ">=1 <2"
