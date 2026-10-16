@@ -1,0 +1,15 @@
+{
+	"format": 1,
+	"id": "evantanner.account-probe",
+	"name": "Account Probe",
+	"description": "Looks for Discord's account-switching internals. Reads function names only, never tokens.",
+	"author": "Evan Tanner",
+	"version": "1.0.0",
+	"dependencies": {
+		"revenge.api": { "version": ">=1 <2" },
+		"discord": { "version": "*" }
+	},
+	"dist": {
+		"script": "index.js"
+	}
+}
