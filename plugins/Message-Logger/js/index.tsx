@@ -4,9 +4,33 @@ import { Clipboard } from '@revenge-mod/externals/react-native-clipboard'
 import type { JsonStorage } from '@revenge-mod/json-storage'
 import { getModules } from '@revenge-mod/modules/finders'
 import { createFilterGenerator } from '@revenge-mod/modules/finders/filters'
+import { callNativeMethod } from '@revenge-mod/modules/native'
 import { after } from '@revenge-mod/patcher'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Alert, Image, Linking, ScrollView, Share } from 'react-native'
+
+// ---------------------------------------------------------------------------
+// Native bridge typings (the Kotlin side of this plugin registers these)
+// ---------------------------------------------------------------------------
+
+declare module '@revenge-mod/modules/native' {
+	export interface NativeMethods {
+		'evantanner.message-logger.save': [
+			[messageId: string, filesJson: string, bucket: string],
+			string,
+		]
+		'evantanner.message-logger.keep': [[messageId: string], string]
+		'evantanner.message-logger.listKept': [[], string]
+		'evantanner.message-logger.stats': [[], string]
+		'evantanner.message-logger.deleteKept': [[messageId: string], string]
+		'evantanner.message-logger.deleteAllKept': [[], string]
+		'evantanner.message-logger.purgePending': [[hours: string], string]
+		'evantanner.message-logger.exportToDownloads': [
+			[fileName: string, mime: string, content: string],
+			string,
+		]
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Settings + log storage
@@ -24,6 +48,10 @@ interface Settings {
 	logAttachments: boolean
 	/** Show image previews for saved attachments in the log. */
 	showPreviews: boolean
+	/** Download deleted messages' attachment files to this device (needs the native part). */
+	saveFilesToDevice: boolean
+	/** Also copy attachments as new messages arrive, so they survive link expiry. */
+	preSaveFiles: boolean
 	/** Format used by the Copy and Share buttons. */
 	exportFormat: ExportFormat
 	maxLogged: number
@@ -59,6 +87,8 @@ const DEFAULTS: Settings = {
 	showLabel: true,
 	logAttachments: true,
 	showPreviews: true,
+	saveFilesToDevice: true,
+	preSaveFiles: false,
 	exportFormat: 'text',
 	maxLogged: 200,
 	entries: '[]',
@@ -89,6 +119,54 @@ function log(...args: unknown[]) {
 		logger?.log(args.map(String).join(' '))
 	} catch {}
 }
+
+// ---------------------------------------------------------------------------
+// Native helpers. Every call is optional: if the native part isn't loaded,
+// calls fail quietly and the plugin keeps working with links only.
+// ---------------------------------------------------------------------------
+
+const PENDING_HOURS = 24 // pre-saved copies older than this are purged
+
+let warnedNative = false
+async function safe<T>(fn: () => Promise<T>): Promise<T | undefined> {
+	try {
+		return await fn()
+	} catch (e) {
+		if (!warnedNative) {
+			warnedNative = true
+			log('Native call failed (is the native part installed?):', String(e))
+		}
+		return undefined
+	}
+}
+
+const filesPayload = (files: FileInfo[]) =>
+	JSON.stringify(files.map(f => ({ name: f.name, url: f.url, fallback: f.proxyUrl ?? '' })))
+
+const nativeSave = (id: string, files: FileInfo[], bucket: 'kept' | 'pending') =>
+	callNativeMethod('evantanner.message-logger.save', [id, filesPayload(files), bucket])
+const nativeKeep = (id: string) =>
+	callNativeMethod('evantanner.message-logger.keep', [id])
+const nativeListKept = () => callNativeMethod('evantanner.message-logger.listKept', [])
+const nativeStats = () => callNativeMethod('evantanner.message-logger.stats', [])
+const nativeDeleteAll = () =>
+	callNativeMethod('evantanner.message-logger.deleteAllKept', [])
+const nativePurge = () =>
+	callNativeMethod('evantanner.message-logger.purgePending', [String(PENDING_HOURS)])
+const nativeExport = (name: string, mime: string, content: string) =>
+	callNativeMethod('evantanner.message-logger.exportToDownloads', [name, mime, content])
+
+/** Copies a deleted message's files to the device: moves pre-saved copies if there are any, else downloads now. */
+async function keepFilesOnDevice(id: string, files: FileInfo[], usedPreSave: boolean) {
+	let result: string | undefined
+	if (usedPreSave) result = await safe(() => nativeKeep(id))
+	if (result !== 'kept') result = await safe(() => nativeSave(id, files, 'kept'))
+	log('Files for', id, '->', result ?? 'native part unavailable')
+}
+
+/** Local path of the n-th attachment, given the native listing for its message. */
+const localPathFor = (paths: string[] | undefined, index: number) =>
+	paths?.find(p => (p.split('/').pop() ?? '').startsWith(`${index}-`))
 
 // ---------------------------------------------------------------------------
 // Deleted-message tracking
@@ -245,7 +323,15 @@ const SHARE_LIMIT = 300_000
 // Attachment preview (settings screen)
 // ---------------------------------------------------------------------------
 
-function AttachmentView({ file, preview }: { file: FileInfo; preview: boolean }) {
+function AttachmentView({
+	file,
+	preview,
+	localPath,
+}: {
+	file: FileInfo
+	preview: boolean
+	localPath?: string
+}) {
 	const { Button, Stack, Text } = Design
 	const [failed, setFailed] = useState(false)
 	const showImage = preview && isImage(file) && !failed
@@ -254,7 +340,7 @@ function AttachmentView({ file, preview }: { file: FileInfo; preview: boolean })
 		<Stack spacing={4}>
 			{showImage ? (
 				<Image
-					source={{ uri: file.proxyUrl ?? file.url }}
+					source={{ uri: localPath ? `file://${localPath}` : (file.proxyUrl ?? file.url) }}
 					style={{ width: '100%', height: 180, borderRadius: 8 }}
 					resizeMode="contain"
 					onError={() => setFailed(true)}
@@ -263,6 +349,7 @@ function AttachmentView({ file, preview }: { file: FileInfo; preview: boolean })
 			<Text variant="text-sm/medium" selectable>
 				{file.name}
 				{file.size ? ` · ${formatSize(file.size)}` : ''}
+				{localPath ? ' · saved on this device' : ''}
 				{failed ? ' · preview unavailable (the link may have expired)' : ''}
 			</Text>
 			<Button
@@ -305,18 +392,64 @@ export default plugin({
 		const entries = parseEntries(s.entries)
 		const [maxText, setMaxText] = useState(String(s.maxLogged))
 
+		// What the native part has saved on this device. undefined = not loaded yet or unavailable.
+		const [kept, setKept] = useState<Record<string, string[]> | undefined>()
+		const [usage, setUsage] = useState<{ kept: number; pending: number } | undefined>()
+		const [nativeChecked, setNativeChecked] = useState(false)
+
+		// biome-ignore lint/correctness/useExhaustiveDependencies: refresh when the log changes
+		useEffect(() => {
+			let alive = true
+			;(async () => {
+				const [list, stats] = await Promise.all([
+					safe(nativeListKept),
+					safe(nativeStats),
+				])
+				if (!alive) return
+				try {
+					setKept(list ? JSON.parse(list) : undefined)
+					setUsage(stats ? JSON.parse(stats) : undefined)
+				} catch {}
+				setNativeChecked(true)
+			})()
+			return () => {
+				alive = false
+			}
+		}, [s.entries])
+
+		const nativeOk = nativeChecked && usage !== undefined
+
 		const confirmClear = () =>
-			Alert.alert('Clear the log?', `This removes all ${entries.length} saved messages.`, [
-				{ text: 'Cancel', style: 'cancel' },
-				{
-					text: 'Clear',
-					style: 'destructive',
-					onPress: () => {
-						storage.set({ entries: '[]' })
-						log('Log cleared')
+			Alert.alert(
+				'Clear the log?',
+				`This removes all ${entries.length} saved messages${nativeOk ? ' and their saved files' : ''}.`,
+				[
+					{ text: 'Cancel', style: 'cancel' },
+					{
+						text: 'Clear',
+						style: 'destructive',
+						onPress: () => {
+							storage.set({ entries: '[]' })
+							if (nativeOk) void safe(nativeDeleteAll).then(() => setKept({}))
+							log('Log cleared')
+						},
 					},
-				},
-			])
+				],
+			)
+
+		const saveToDownloads = async () => {
+			const ext = s.exportFormat === 'json' ? 'json' : 'txt'
+			const mime = ext === 'json' ? 'application/json' : 'text/plain'
+			const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+			const result = await safe(() =>
+				nativeExport(`message-logger-${stamp}.${ext}`, mime, build(entries, s.exportFormat)),
+			)
+			if (!result || result.startsWith('error')) {
+				Alert.alert("Couldn't save", result ?? 'The native part of this plugin is not loaded.')
+			} else {
+				Alert.alert('Saved', `The export is in ${result}`)
+			}
+		}
 
 		const copyLog = () => {
 			try {
@@ -395,7 +528,27 @@ export default plugin({
 						value={s.showPreviews}
 						onValueChange={(v: boolean) => storage.set({ showPreviews: v })}
 					/>
+					<TableSwitchRow
+						label="Save files on this device"
+						subLabel="Downloads deleted attachments so they still open after the links expire"
+						value={s.saveFilesToDevice}
+						onValueChange={(v: boolean) => storage.set({ saveFilesToDevice: v })}
+					/>
+					<TableSwitchRow
+						label="Pre-save new attachments"
+						subLabel="Copies files as messages arrive, so even fast deletions are caught. Uses data and storage; copies older than 24 hours are removed."
+						value={s.preSaveFiles}
+						onValueChange={(v: boolean) => storage.set({ preSaveFiles: v })}
+					/>
 				</TableRowGroup>
+
+				<Text variant="text-sm/medium">
+					{nativeOk
+						? `Saved files: ${formatSize(usage?.kept) || '0 B'} kept, ${formatSize(usage?.pending) || '0 B'} waiting`
+						: nativeChecked
+							? 'The native part of this plugin is not loaded, so files are not saved on the device (links are still logged).'
+							: 'Checking the native part…'}
+				</Text>
 
 				<Stack spacing={8}>
 					<Text variant="text-md/semibold">Export</Text>
@@ -428,6 +581,13 @@ export default plugin({
 							disabled={!entries.length}
 							onPress={shareLog}
 						/>
+						<Button
+							size="sm"
+							variant="secondary"
+							text="Save to Downloads"
+							disabled={!entries.length || !nativeOk}
+							onPress={saveToDownloads}
+						/>
 					</Stack>
 				</Stack>
 
@@ -454,11 +614,12 @@ export default plugin({
 								{e.content || '(no text)'}
 							</Text>
 							{e.files?.length ? (
-								e.files.map(f => (
+								e.files.map((f, i) => (
 									<AttachmentView
 										key={`${f.url}`}
 										file={f}
 										preview={s.showPreviews}
+										localPath={localPathFor(kept?.[e.id], i)}
 									/>
 								))
 							) : e.attachments ? (
@@ -509,9 +670,17 @@ export default plugin({
 					}
 					if (isOwn(message) && !s.logOwn) return payload
 
-					const entry = makeEntry(message, payload.channelId, payload.guildId, s.logAttachments)
+					const entry = makeEntry(
+						message,
+						payload.channelId,
+						payload.guildId,
+						s.logAttachments || s.saveFilesToDevice,
+					)
 					deletedIds.add(payload.id)
 					save(entry)
+					if (s.saveFilesToDevice && entry.files?.length) {
+						void keepFilesOnDevice(entry.id, entry.files, s.preSaveFiles)
+					}
 					log('Kept deleted message', payload.id, 'from', entry.author)
 					refresh()
 					return undefined // block the delete so the message stays
@@ -534,7 +703,16 @@ export default plugin({
 
 					for (const message of found) {
 						deletedIds.add(message.id)
-						save(makeEntry(message, payload.channelId, payload.guildId, s.logAttachments))
+						const entry = makeEntry(
+							message,
+							payload.channelId,
+							payload.guildId,
+							s.logAttachments || s.saveFilesToDevice,
+						)
+						save(entry)
+						if (s.saveFilesToDevice && entry.files?.length) {
+							void keepFilesOnDevice(entry.id, entry.files, s.preSaveFiles)
+						}
 					}
 					log(`Kept ${found.length} bulk-deleted message(s)`)
 					refresh()
@@ -546,7 +724,35 @@ export default plugin({
 			}),
 		)
 
-		log('Step 3: patching the chat row manager to color kept messages')
+		log('Step 3: pre-saving new attachments (only when that setting is on)')
+		cleanup(
+			onFluxEventDispatched('MESSAGE_CREATE', (payload: any) => {
+				// Never block this event: always hand the payload back.
+				try {
+					const s = getSettings()
+					const message = payload?.message
+					if (!s.enabled || !s.preSaveFiles || payload?.optimistic || !message?.id) return payload
+
+					const me = (Stores as any).UserStore?.getCurrentUser?.()?.id
+					if (!s.logOwn && message.author?.id === me) return payload
+
+					const files = collectFiles(message)
+					if (files.length) void safe(() => nativeSave(message.id, files, 'pending'))
+				} catch (e) {
+					log('MESSAGE_CREATE pre-save failed:', String(e))
+				}
+				return payload
+			}),
+		)
+
+		const purge = () => {
+			if (getSettings().preSaveFiles) void safe(nativePurge)
+		}
+		purge()
+		const purgeTimer = setInterval(purge, 60 * 60 * 1000)
+		cleanup(() => clearInterval(purgeTimer))
+
+		log('Step 4: patching the chat row manager to color kept messages')
 		cleanup(
 			getModules(withGenerate(), (exports: any, id: number) => {
 				try {
