@@ -1,0 +1,27 @@
+{
+	"format": 1,
+	"id": "evantanner.ghost-ping-notifications",
+	"name": "Ghost Ping Notifications",
+	"description": "Sends an Android notification when someone pings you and then deletes the message. Needs Message Logger.",
+	"icon": "BellIcon",
+	"author": "Evan Tanner",
+	"version": "1.0.0",
+	"dependencies": {
+		"revenge.api": {
+			"version": ">=1 <2"
+		},
+		"discord": {
+			"version": "*"
+		},
+		"evantanner.message-logger": {
+			"version": ">=1.6 <2"
+		}
+	},
+	"dist": {
+		"script": "index.js",
+		"android": {
+			"path": "plugin.jar",
+			"class": "evantanner.ghostpingnotifications.GhostPingNotifications"
+		}
+	}
+}
