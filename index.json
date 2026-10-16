@@ -31,7 +31,7 @@
       "description": "Keeps deleted messages on screen in red and saves a log of them, with attachments and export.",
       "author": "Evan Tanner",
       "channels": {
-        "latest": "1.2.0"
+        "latest": "1.2.1"
       },
       "versions": {
         "1.0.0": {
@@ -63,6 +63,19 @@
         "1.2.0": {
           "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.message-logger@1.2.0.zip",
           "sha256": "1908cc863a07cdf62226ac5d5f42c313134a49d8741b24e60a69b87ac8b42ee9",
+          "size": 3878,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "1.2.1": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.message-logger@1.2.1.zip",
+          "sha256": "aa47386679f5dacb7688528e5be1a36b6095e529b23cc1a6bf40d169c8f95593",
           "size": 3878,
           "dependencies": {
             "revenge.api": {
