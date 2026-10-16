@@ -2,10 +2,10 @@
 	"format": 1,
 	"id": "evantannermeta.plugin-browser",
 	"name": "Plugin Browser",
-	"description": "Browse and install plugins from the Revenge community repository.",
+	"description": "Browse, install, update and manage Revenge plugins from one screen in Settings → Revenge.",
 	"icon": "DownloadIcon",
 	"author": "EvanTannermeta (https://github.com/EvanTannermeta \"GitHub\")",
-	"version": "1.2.1",
+	"version": "1.3.0",
 	"dependencies": {
 		"revenge.api": {
 			"version": ">=1 <2"
