@@ -26,6 +26,30 @@
         }
       }
     },
+    "evantanner.evan-theme": {
+      "name": "Evan Theme",
+      "description": "Dark navy and violet color themes in three accents, matching the Evan Plugins site. Works on all four base themes.",
+      "author": "Evan Tanner",
+      "channels": {
+        "latest": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.evan-theme@1.0.0.zip",
+          "sha256": "4d14d8ef9bf18147593beab4af9b3faec8f5ff66a1fd5d1fc2a204106cb15e5d",
+          "size": 1630,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            },
+            "revenge.api.themes": {}
+          }
+        }
+      }
+    },
     "evantanner.ghost-ping-notifications": {
       "name": "Ghost Ping Notifications",
       "description": "Sends an Android notification when someone pings you and then deletes the message. Needs Message Logger.",
