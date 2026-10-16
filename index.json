@@ -1,7 +1,7 @@
 {
   "format": 1,
-  "name": "Evan Tanner Repository",
-  "description": "if its works, it works.",
+  "name": "Evan Plugins",
+  "description": "Plugins by Evan Tanner for Revenge.",
   "plugins": {
     "EvanTanner.bundle-update-checker": {
       "name": "Bundle Update Checker",
@@ -126,11 +126,11 @@
     },
     "evantannermeta.plugin-browser": {
       "name": "Plugin Browser",
-      "description": "Browse and install plugins from the Revenge community repository.",
+      "description": "Browse, install, update and manage Revenge plugins from one screen in Settings → Revenge.",
       "author": "EvanTannermeta (https://github.com/EvanTannermeta \"GitHub\")",
       "icon": "DownloadIcon",
       "channels": {
-        "latest": "1.2.1"
+        "latest": "1.3.0"
       },
       "versions": {
         "1.0.0": {
@@ -202,6 +202,19 @@
           "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantannermeta.plugin-browser@1.2.1.zip",
           "sha256": "39ed48efd94e0648c763d3efe7f8b92575674034407f8328f0dd01587a110a15",
           "size": 5907,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "1.3.0": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantannermeta.plugin-browser@1.3.0.zip",
+          "sha256": "bdee960ca0a0398fc8cbe972d797cb06609f7d5d9c6c544b20cdf3b835a49c01",
+          "size": 7129,
           "dependencies": {
             "revenge.api": {
               "version": ">=1 <2"
