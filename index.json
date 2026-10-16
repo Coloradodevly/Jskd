@@ -26,18 +26,55 @@
         }
       }
     },
-    "evantanner.evan-theme": {
-      "name": "Evan Theme",
-      "description": "Dark navy and violet color themes in three accents, matching the Evan Plugins site. Works on all four base themes.",
+    "evantanner.account-probe": {
+      "name": "Account Probe",
+      "description": "Looks for Discord's account-switching internals. Reads function names only, never tokens.",
       "author": "Evan Tanner",
       "channels": {
         "latest": "1.0.0"
       },
       "versions": {
         "1.0.0": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.account-probe@1.0.0.zip",
+          "sha256": "e52f09181d0b349c0eb925f976e33f1caf1fbc68b7368a0018a7738405c5fac6",
+          "size": 1840,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    },
+    "evantanner.evan-theme": {
+      "name": "Evan Theme",
+      "description": "Dark navy color themes in three accents plus a Custom theme with its own settings page. Works on all four base themes.",
+      "author": "Evan Tanner",
+      "channels": {
+        "latest": "1.1.0"
+      },
+      "versions": {
+        "1.0.0": {
           "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.evan-theme@1.0.0.zip",
           "sha256": "4d14d8ef9bf18147593beab4af9b3faec8f5ff66a1fd5d1fc2a204106cb15e5d",
           "size": 1630,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            },
+            "revenge.api.themes": {}
+          }
+        },
+        "1.1.0": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.evan-theme@1.1.0.zip",
+          "sha256": "bc133e5fbee5f6405a9058e0ecbea95688f51b77d69e2596f1f0a6906df81876",
+          "size": 3336,
           "dependencies": {
             "revenge.api": {
               "version": ">=1 <2"
