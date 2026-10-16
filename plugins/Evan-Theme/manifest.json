@@ -1,0 +1,16 @@
+{
+	"format": 1,
+	"id": "evantanner.evan-theme",
+	"name": "Evan Theme",
+	"description": "Dark navy and violet color themes in three accents, matching the Evan Plugins site. Works on all four base themes.",
+	"author": "Evan Tanner",
+	"version": "1.0.0",
+	"dependencies": {
+		"revenge.api": { "version": ">=1 <2" },
+		"discord": { "version": "*" },
+		"revenge.api.themes": {}
+	},
+	"dist": {
+		"script": "index.js"
+	}
+}
