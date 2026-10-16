@@ -54,7 +54,7 @@
       "description": "Dark navy color themes in three accents plus a Custom theme with its own settings page. Works on all four base themes.",
       "author": "Evan Tanner",
       "channels": {
-        "latest": "1.1.0"
+        "latest": "1.1.1"
       },
       "versions": {
         "1.0.0": {
@@ -74,6 +74,20 @@
         "1.1.0": {
           "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.evan-theme@1.1.0.zip",
           "sha256": "bc133e5fbee5f6405a9058e0ecbea95688f51b77d69e2596f1f0a6906df81876",
+          "size": 3336,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            },
+            "revenge.api.themes": {}
+          }
+        },
+        "1.1.1": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.evan-theme@1.1.1.zip",
+          "sha256": "3745b7852108445f6f1e74b9330d0225acfba8592691045293bccef7d38ef4a7",
           "size": 3336,
           "dependencies": {
             "revenge.api": {
