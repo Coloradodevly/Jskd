@@ -4,7 +4,7 @@
 	"name": "Message Logger",
 	"description": "Keeps deleted messages on screen in red and saves a log of them, with attachments and export.",
 	"author": "Evan Tanner",
-	"version": "1.2.1",
+	"version": "1.3.0",
 	"dependencies": {
 		"revenge.api": {
 			"version": ">=1 <2"
@@ -14,6 +14,10 @@
 		}
 	},
 	"dist": {
-		"script": "index.js"
+		"script": "index.js",
+		"android": {
+			"path": "plugin.jar",
+			"class": "evantanner.messagelogger.MessageLogger"
+		}
 	}
 }
