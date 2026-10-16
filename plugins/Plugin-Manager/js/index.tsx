@@ -1,6 +1,14 @@
-import { Page, SearchInput } from '@revenge-mod/components'
+import { getAssetIdByName } from '@revenge-mod/assets'
+import { Page, SearchInput, TableRowAssetIcon } from '@revenge-mod/components'
 import { AlertActionCreators } from '@revenge-mod/discord/actions'
+import { Tokens } from '@revenge-mod/discord/common/tokens'
 import { Design } from '@revenge-mod/discord/design'
+import {
+	addSettingsItemToSection,
+	onSettingsModulesLoaded,
+	refreshSettings,
+	registerSettingsItem,
+} from '@revenge-mod/discord/modules/settings'
 import {
 	disablePluginInActiveSlot,
 	enablePluginInActiveSlot,
@@ -35,7 +43,8 @@ import {
 } from '@revenge-mod/plugins/utils'
 import { reloadApp } from '@revenge-mod/modules/native/app'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ScrollView, View } from 'react-native'
+import { Image, ScrollView, View } from 'react-native'
+import type { SettingsItem } from '@revenge-mod/discord/modules/settings'
 import type { AnyPlugin } from '@revenge-mod/plugins/_'
 import type {
 	InstallPlan,
@@ -121,6 +130,122 @@ function versionOf(plugin: AnyPlugin) {
 	} catch {
 		return String(plugin.manifest.version ?? '?')
 	}
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Icons, credits, requirements                                              */
+/* -------------------------------------------------------------------------- */
+
+let useIconStyles: (() => { icon: object }) | undefined
+
+/** Plugin icon: a packaged asset name (tinted) or an inline `data:` image. */
+function PluginIcon({
+	icon,
+	size = 28,
+}: {
+	icon?: string | null
+	size?: number
+}) {
+	// Created on first use, because Design isn't available when the file loads.
+	useIconStyles ??= Design.createStyles({
+		icon: { tintColor: Tokens.default.colors.TEXT_STRONG },
+	}) as never
+	const styles = useIconStyles!()
+
+	const isData = !!icon?.startsWith('data:')
+	const source = isData
+		? { uri: icon as string }
+		: ((icon ? getAssetIdByName(icon) : undefined) ??
+			getAssetIdByName('PuzzlePieceIcon', 'png'))
+
+	if (source == null) return null
+
+	return (
+		<Image
+			source={source as never}
+			style={[!isData && styles.icon, { width: size, height: size }]}
+		/>
+	)
+}
+
+function PluginTitle({ name, icon }: { name: string; icon?: string | null }) {
+	const { Text } = Design
+
+	return (
+		<View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+			<PluginIcon icon={icon} />
+			<View style={{ flexShrink: 1 }}>
+				<Text variant="heading-md/semibold">{name}</Text>
+			</View>
+		</View>
+	)
+}
+
+/** "by Palm +2" */
+function bylineOf(author?: string | null, contributors?: string[] | null) {
+	const main = nameOf(author)
+	if (!main) return null
+	const extra = contributors?.length ?? 0
+	return `by ${main}${extra ? ` +${extra}` : ''}`
+}
+
+function showCredits(
+	title: string,
+	author?: string | null,
+	contributors?: string[] | null,
+) {
+	const names = (contributors ?? []).map(nameOf).filter(Boolean)
+
+	openAlert(
+		`${title} credits`,
+		[
+			`Author\n${nameOf(author) ?? 'Unknown'}`,
+			names.length ? `Contributors\n${names.join('\n')}` : null,
+		]
+			.filter(Boolean)
+			.join('\n\n'),
+	)
+}
+
+function CreditsButton({
+	title,
+	author,
+	contributors,
+}: {
+	title: string
+	author?: string | null
+	contributors?: string[] | null
+}) {
+	const { Button } = Design
+	if (!contributors?.length) return null
+
+	return (
+		<Button
+			text="Credits"
+			variant="tertiary"
+			size="sm"
+			onPress={() => showCredits(title, author, contributors)}
+		/>
+	)
+}
+
+/** Revenge itself and Discord are always required, so only list other plugins. */
+const BUILT_IN_REQUIREMENTS = new Set(['revenge.api', 'discord'])
+
+function requirementsOf(listing: RepoPluginListing, version: string) {
+	const deps = listing.versions[version]?.dependencies ?? {}
+
+	return Object.entries(deps)
+		.filter(([id]) => !BUILT_IN_REQUIREMENTS.has(id))
+		.map(([id, dep]) => {
+			const installed = pList.get(id)
+			const flags = [
+				dep.optional ? 'optional' : null,
+				installed ? null : 'not installed',
+			].filter(Boolean)
+
+			return `${installed?.manifest.name ?? id}${flags.length ? ` (${flags.join(', ')})` : ''}`
+		})
 }
 
 /** Re-renders when anything about the plugin list changes. */
@@ -460,16 +585,14 @@ function InstalledPluginCard({
 		.filter(Boolean)
 		.join(' · ')
 
-	const author = nameOf(plugin.manifest.author)
+	const byline = bylineOf(plugin.manifest.author, plugin.manifest.contributors)
 
 	return (
 		<Card>
 			<Stack spacing={6}>
-				<Text variant="heading-md/semibold">{plugin.manifest.name}</Text>
+				<PluginTitle name={plugin.manifest.name} icon={plugin.manifest.icon} />
 				<Text variant="text-sm/medium" color="text-muted">
-					{[`v${versionOf(plugin)}`, author ? `by ${author}` : null]
-						.filter(Boolean)
-						.join(' · ')}
+					{[`v${versionOf(plugin)}`, byline].filter(Boolean).join(' · ')}
 				</Text>
 				{plugin.manifest.description ? (
 					<Text variant="text-md/medium">{plugin.manifest.description}</Text>
@@ -489,6 +612,11 @@ function InstalledPluginCard({
 						variant="destructive"
 						size="sm"
 						onPress={() => uninstallPlugin(plugin)}
+					/>
+					<CreditsButton
+						title={plugin.manifest.name}
+						author={plugin.manifest.author}
+						contributors={plugin.manifest.contributors}
 					/>
 				</Stack>
 			</Stack>
@@ -622,6 +750,9 @@ async function loadBrowse(
 	return { entries, repos }
 }
 
+/** How many versions the version picker lists. */
+const MAX_VERSIONS = 6
+
 function describePlan(plan: InstallPlan) {
 	const lines = plan.actions.map(
 		a => `${a.replaces ? 'Update' : 'Install'} ${a.id} v${a.version}`,
@@ -681,15 +812,25 @@ function BrowseTab({ updater }: { updater: Updater }) {
 		// biome-ignore lint/correctness/useExhaustiveDependencies: see above
 	}, [entries, query, filters, updateById, tick])
 
-	const install = async ({ listing, repoUrl }: BrowseEntry) => {
+	/** `version` pins that exact version. Leave it out to follow the latest. */
+	const install = async ({ listing, repoUrl }: BrowseEntry, version?: string) => {
 		setBusyId(listing.id)
 		try {
-			const plan = await planInstall(listing.id, { repos: [repoUrl] })
+			const plan = await planInstall(listing.id, {
+				repos: [repoUrl],
+				...(version
+					? { targets: { [listing.id]: { repo: repoUrl, version } } }
+					: {}),
+			})
 			setBusyId(null)
 
+			const pinNote = version
+				? `\n\nv${version} will be pinned: updates for ${listing.name} stay paused until you install the latest version again.`
+				: ''
+
 			const ok = await confirm(
-				`Install ${listing.name}?`,
-				`${describePlan(plan)}\n\nPlugins run with full access to your Discord client, including your messages and token. Only install plugins you trust.`,
+				`Install ${listing.name}${version ? ` v${version}` : ''}?`,
+				`${describePlan(plan)}${pinNote}\n\nPlugins run with full access to your Discord client, including your messages and token. Only install plugins you trust.`,
 				'Install',
 			)
 			if (!ok) return
@@ -707,6 +848,41 @@ function BrowseTab({ updater }: { updater: Updater }) {
 		} finally {
 			setBusyId(null)
 		}
+	}
+
+	const chooseVersion = async (entry: BrowseEntry) => {
+		const { listing } = entry
+		const latest = listing.channels.latest ?? listing.order[0]
+		const current = pList.get(listing.id)
+		const installedVersion = current ? versionOf(current) : null
+		const shown = listing.order.slice(0, MAX_VERSIONS)
+
+		const picked = await new Promise<string | null>(resolve =>
+			openAlert(
+				`${listing.name} versions`,
+				[
+					'Choose a version to install.',
+					listing.order.length > shown.length
+						? `Showing the newest ${shown.length} of ${listing.order.length}.`
+						: null,
+					'Older versions are pinned, so updates for this plugin pause until you install the latest again.',
+				]
+					.filter(Boolean)
+					.join('\n\n'),
+				[
+					...shown.map(v => ({
+						text: `v${v}${v === latest ? ' (latest)' : ''}${v === installedVersion ? ' · installed' : ''}`,
+						variant: 'secondary',
+						onPress: () => resolve(v),
+					})),
+					{ text: 'Cancel', variant: 'secondary', onPress: () => resolve(null) },
+				],
+			),
+		)
+
+		if (!picked || picked === installedVersion) return
+		// The latest version follows updates normally, so it isn't pinned.
+		await install(entry, picked === latest ? undefined : picked)
 	}
 
 	return (
@@ -763,24 +939,28 @@ function BrowseTab({ updater }: { updater: Updater }) {
 				const update = updateById.get(listing.id)
 				const canUpdate = !!update && safeIds.has(listing.id)
 				const latest = listing.channels.latest ?? listing.order[0]
+				const requires = latest ? requirementsOf(listing, latest) : []
 
 				return (
 					<Card key={listing.id}>
 						<Stack spacing={6}>
-							<Text variant="heading-md/semibold">{listing.name}</Text>
+							<PluginTitle name={listing.name} icon={listing.icon} />
 							<Text variant="text-sm/medium" color="text-muted">
 								{[
 									latest ? `v${latest}` : null,
 									formatSize(listing.versions[latest ?? '']?.size),
-									nameOf(listing.author)
-										? `by ${nameOf(listing.author)}`
-										: null,
+									bylineOf(listing.author, listing.contributors),
 								]
 									.filter(Boolean)
 									.join(' · ')}
 							</Text>
 							{listing.description ? (
 								<Text variant="text-md/medium">{listing.description}</Text>
+							) : null}
+							{requires.length ? (
+								<Text variant="text-sm/medium" color="text-muted">
+									Requires: {requires.join(', ')}
+								</Text>
 							) : null}
 							{installedPlugin ? (
 								<Text variant="text-sm/medium" color="text-muted">
@@ -800,29 +980,45 @@ function BrowseTab({ updater }: { updater: Updater }) {
 									{entry.repoName}
 								</Text>
 							) : null}
-							{update ? (
-								<Button
-									text={
-										canUpdate
-											? `Update to v${update.available}`
-											: 'Update blocked'
-									}
-									variant="primary"
-									size="sm"
-									loading={installing}
-									disabled={!canUpdate || installing || busyId !== null}
-									onPress={() => updateOne(listing.id)}
+							<Stack spacing={8} direction="horizontal">
+								{update ? (
+									<Button
+										text={
+											canUpdate
+												? `Update to v${update.available}`
+												: 'Update blocked'
+										}
+										variant="primary"
+										size="sm"
+										loading={installing}
+										disabled={!canUpdate || installing || busyId !== null}
+										onPress={() => updateOne(listing.id)}
+									/>
+								) : (
+									<Button
+										text={installedPlugin ? 'Installed' : 'Install'}
+										variant={installedPlugin ? 'secondary' : 'primary'}
+										size="sm"
+										loading={busyId === listing.id}
+										disabled={!!installedPlugin || busyId !== null}
+										onPress={() => install(entry)}
+									/>
+								)}
+								{listing.order.length > 1 ? (
+									<Button
+										text="Versions"
+										variant="secondary"
+										size="sm"
+										disabled={installing || busyId !== null}
+										onPress={() => chooseVersion(entry)}
+									/>
+								) : null}
+								<CreditsButton
+									title={listing.name}
+									author={listing.author}
+									contributors={listing.contributors}
 								/>
-							) : (
-								<Button
-									text={installedPlugin ? 'Installed' : 'Install'}
-									variant={installedPlugin ? 'secondary' : 'primary'}
-									size="sm"
-									loading={busyId === listing.id}
-									disabled={!!installedPlugin || busyId !== null}
-									onPress={() => install(entry)}
-								/>
-							)}
+							</Stack>
 						</Stack>
 					</Card>
 				)
@@ -1073,10 +1269,64 @@ function startUpdateChecker(): () => void {
 	}
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Settings → Revenge entry                                                  */
+/* -------------------------------------------------------------------------- */
+
+const SETTING_KEY = 'EvanPluginBrowser'
+const ROUTE_NAME = 'Plugin Browser'
+
+/** This plugin's own record, so the screen can show its version. */
+let selfPlugin: AnyPlugin | undefined
+
+function PluginBrowserScreen() {
+	return <PluginManager plugin={selfPlugin} />
+}
+
+const PluginBrowserSetting: SettingsItem = {
+	parent: null,
+	type: 'route',
+	IconComponent: () => <TableRowAssetIcon name="DownloadIcon" />,
+	useTitle: () => 'Plugin Browser',
+	screen: {
+		route: ROUTE_NAME,
+		getComponent: () => PluginBrowserScreen,
+	},
+}
+
+/** Adds "Plugin Browser" to Settings → Revenge. Returns a function that removes it. */
+function registerBrowserSetting() {
+	const unregister = registerSettingsItem(SETTING_KEY, PluginBrowserSetting)
+
+	let removeFromSection = noop
+	try {
+		removeFromSection = addSettingsItemToSection('REVENGE', SETTING_KEY)
+	} catch (e) {
+		log('Could not add the settings entry:', errorText(e))
+	}
+
+	refreshSettings()
+
+	return () => {
+		removeFromSection()
+		unregister()
+		refreshSettings()
+	}
+}
+
 export default plugin({
-	start({ cleanup, logger }) {
+	start({ cleanup, logger, plugin: self }) {
 		pluginLogger = logger
+		selfPlugin = self as AnyPlugin
+
 		cleanup(startUpdateChecker())
+
+		// Registered once Discord's settings are ready, to keep startup fast.
+		cleanup(
+			onSettingsModulesLoaded(() => {
+				cleanup(registerBrowserSetting())
+			}),
+		)
 	},
 
 	SettingsComponent({ api }) {
