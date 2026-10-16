@@ -322,6 +322,9 @@ let alertOpen = false
 let readSettings: () => Settings = () => DEFAULTS
 let ghostSink: ((entry: GhostEntry) => void) | undefined
 
+/** Plugins that depend on this one and want to hear about ghost pings (see `decorate` in start). */
+const ghostListeners = new Set<(entry: GhostEntry) => void>()
+
 function parseGhost(raw: string): GhostEntry[] {
 	try {
 		const parsed = JSON.parse(raw)
@@ -448,6 +451,13 @@ function reportGhost(
 	}
 	log('Ghost ping from', entry.author, `(${how})`)
 	ghostSink?.(entry)
+	for (const listener of [...ghostListeners]) {
+		try {
+			listener(entry)
+		} catch (e) {
+			log('A ghost ping listener failed:', String(e))
+		}
+	}
 	alertQueue.push(entry)
 	showNextAlert()
 }
@@ -1010,8 +1020,24 @@ export default plugin({
 		)
 	},
 
-	start({ cleanup, jsonStorage, logger: pluginLogger }) {
+	start({ cleanup, decorate, jsonStorage, logger: pluginLogger }) {
 		logger = pluginLogger
+
+		// Library API: plugins that list this plugin in their manifest `dependencies` get
+		// `api.messageLogger`. Done first, because dependents start right after this plugin.
+		decorate(dependent => {
+			;(dependent.api as any).messageLogger = {
+				/** Calls `listener` for every ghost ping. Returns a function that stops listening. */
+				onGhostPing(listener: (entry: GhostEntry) => void) {
+					ghostListeners.add(listener)
+					const stop = () => {
+						ghostListeners.delete(listener)
+					}
+					dependent.api.cleanup(stop)
+					return stop
+				},
+			}
+		})
 		log('Step 1: plugin starting')
 		const storage = jsonStorage as JsonStorage<Settings>
 		const getSettings = (): Settings => ({ ...DEFAULTS, ...(storage.cache ?? {}) })
@@ -1026,6 +1052,7 @@ export default plugin({
 			readSettings = () => DEFAULTS
 			alertQueue.length = 0
 			trackedPings.clear()
+			ghostListeners.clear()
 		})
 
 		const save = (entry: Entry) => {
