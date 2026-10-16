@@ -450,12 +450,40 @@ function useUpdates() {
 		setChecking(true)
 		try {
 			const { errors } = await refreshAllRepos()
-			setUpdates(await listUpdates())
-			if (errors.length)
+			const all = await listUpdates()
+			setUpdates(all)
+
+			const safe = selectSafeUpdates(all)
+			const available = all.filter(u => safe.has(u.id))
+
+			if (available.length) {
+				// Same Yes/No popup as the automatic checker: Yes updates and reloads.
+				const sizes = await getUpdateSizes(available)
+				const ids = new Set(available.map(u => u.id))
+				openAlert(
+					`${available.length} plugin update${available.length === 1 ? '' : 's'} available`,
+					summarizeUpdates(available, sizes),
+					[
+						{
+							text: 'Yes',
+							onPress: () => {
+								log('User chose Yes (manual check)')
+								void applyUpdatesAndReload(ids)
+							},
+						},
+						{
+							text: 'No',
+							variant: 'secondary',
+							onPress: () => log('User chose No (manual check)'),
+						},
+					],
+				)
+			} else if (errors.length) {
 				openAlert(
 					'Some repositories failed to refresh',
 					errors.map(e => `${e.url}: ${errorText(e.error)}`).join('\n'),
 				)
+			}
 		} catch (e) {
 			openAlert("Couldn't check for updates", errorText(e))
 		} finally {
