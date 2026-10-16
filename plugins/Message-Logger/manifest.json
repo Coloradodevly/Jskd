@@ -2,12 +2,16 @@
 	"format": 1,
 	"id": "evantanner.message-logger",
 	"name": "Message Logger",
-	"description": "Keeps deleted messages on screen in red and saves a log of them.",
+	"description": "Keeps deleted messages on screen in red and saves a log of them, with attachments and export.",
 	"author": "Evan Tanner",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"dependencies": {
-		"revenge.api": { "version": ">=1 <2" },
-		"discord": { "version": "*" }
+		"revenge.api": {
+			"version": ">=1 <2"
+		},
+		"discord": {
+			"version": "*"
+		}
 	},
 	"dist": {
 		"script": "index.js"
