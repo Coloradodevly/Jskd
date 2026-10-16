@@ -1,15 +1,18 @@
 import { Design } from '@revenge-mod/discord/design'
 import { onFluxEventDispatched, Stores } from '@revenge-mod/discord/flux'
+import { Clipboard } from '@revenge-mod/externals/react-native-clipboard'
 import type { JsonStorage } from '@revenge-mod/json-storage'
 import { getModules } from '@revenge-mod/modules/finders'
 import { createFilterGenerator } from '@revenge-mod/modules/finders/filters'
 import { after } from '@revenge-mod/patcher'
 import { useState } from 'react'
-import { Alert, ScrollView } from 'react-native'
+import { Alert, Image, Linking, ScrollView, Share } from 'react-native'
 
 // ---------------------------------------------------------------------------
 // Settings + log storage
 // ---------------------------------------------------------------------------
+
+type ExportFormat = 'text' | 'json'
 
 interface Settings {
 	enabled: boolean
@@ -17,9 +20,25 @@ interface Settings {
 	logOwn: boolean
 	/** Show "(deleted)" after the message, where the "(edited)" label normally goes. */
 	showLabel: boolean
+	/** Save attachment links with each logged message. */
+	logAttachments: boolean
+	/** Show image previews for saved attachments in the log. */
+	showPreviews: boolean
+	/** Format used by the Copy and Share buttons. */
+	exportFormat: ExportFormat
 	maxLogged: number
 	/** JSON array of Entry, newest first. Stored as a string so clearing it is safe. */
 	entries: string
+}
+
+interface FileInfo {
+	name: string
+	/** Original attachment link. */
+	url: string
+	/** Media-proxy link, usually the one that still loads images. */
+	proxyUrl?: string
+	type?: string
+	size?: number
 }
 
 interface Entry {
@@ -27,7 +46,10 @@ interface Entry {
 	author: string
 	where: string
 	content: string
+	/** Number of attachments (older entries only have this). */
 	attachments: number
+	/** Saved attachment details, when "Save attachments" was on. */
+	files?: FileInfo[]
 	deletedAt: number
 }
 
@@ -35,6 +57,9 @@ const DEFAULTS: Settings = {
 	enabled: true,
 	logOwn: false,
 	showLabel: true,
+	logAttachments: true,
+	showPreviews: true,
+	exportFormat: 'text',
 	maxLogged: 200,
 	entries: '[]',
 }
@@ -101,24 +126,159 @@ function isOwn(message: any): boolean {
 	}
 }
 
-function makeEntry(message: any, channelId: string, guildId?: string): Entry {
+const IMAGE_NAME = /\.(png|jpe?g|gif|webp|bmp)$/i
+
+const isImage = (f: FileInfo) =>
+	!!f.type?.startsWith('image/') || IMAGE_NAME.test(f.name)
+
+/** Reads attachment details off a message. Field names differ between Discord versions. */
+function collectFiles(message: any): FileInfo[] {
+	const list = message?.attachments
+	if (!Array.isArray(list)) return []
+
+	return list
+		.slice(0, 10)
+		.map((a: any): FileInfo => {
+			const size = a.size
+			return {
+				name: String(a.filename ?? a.name ?? 'file'),
+				url: String(a.url ?? a.proxy_url ?? a.proxyURL ?? a.proxyUrl ?? ''),
+				proxyUrl:
+					a.proxy_url ?? a.proxyURL ?? a.proxyUrl
+						? String(a.proxy_url ?? a.proxyURL ?? a.proxyUrl)
+						: undefined,
+				type: a.content_type ?? a.contentType ?? undefined,
+				size: typeof size === 'number' ? size : undefined,
+			}
+		})
+		.filter(f => f.url)
+}
+
+function makeEntry(
+	message: any,
+	channelId: string,
+	guildId: string | undefined,
+	saveFiles: boolean,
+): Entry {
 	const author =
 		message.author?.globalName ??
 		message.author?.username ??
 		(Stores as any).UserStore?.getUser?.(message.author?.id)?.username ??
 		'Unknown'
+
+	const files = saveFiles ? collectFiles(message) : []
+
+	// Warm the image cache now, while the links still work.
+	for (const f of files) {
+		if (isImage(f)) Image.prefetch(f.proxyUrl ?? f.url).catch(() => {})
+	}
+
 	return {
 		id: message.id,
 		author,
 		where: describeWhere(channelId, guildId),
 		content: String(message.content ?? '').slice(0, 1000),
 		attachments: message.attachments?.length ?? 0,
+		files: files.length ? files : undefined,
 		deletedAt: Date.now(),
 	}
 }
 
 // ---------------------------------------------------------------------------
-// Settings screen
+// Export
+// ---------------------------------------------------------------------------
+
+function formatSize(bytes?: number) {
+	if (!bytes) return ''
+	if (bytes < 1024) return `${bytes} B`
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+	return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function toText(entries: Entry[]) {
+	return entries
+		.map(e => {
+			const lines = [
+				`[${new Date(e.deletedAt).toLocaleString()}] ${e.author} · ${e.where}`,
+				e.content || '(no text)',
+			]
+
+			if (e.files?.length) {
+				lines.push(
+					'Attachments:',
+					...e.files.map(
+						f =>
+							`  - ${f.name}${f.size ? ` (${formatSize(f.size)})` : ''}: ${f.url}`,
+					),
+				)
+			} else if (e.attachments) {
+				lines.push(`Attachments: ${e.attachments} (links not saved)`)
+			}
+
+			return lines.join('\n')
+		})
+		.join('\n\n---\n\n')
+}
+
+function toJson(entries: Entry[]) {
+	return JSON.stringify(
+		{
+			exportedAt: new Date().toISOString(),
+			count: entries.length,
+			entries: entries.map(e => ({
+				...e,
+				deletedAt: new Date(e.deletedAt).toISOString(),
+			})),
+		},
+		null,
+		2,
+	)
+}
+
+const build = (entries: Entry[], format: ExportFormat) =>
+	format === 'json' ? toJson(entries) : toText(entries)
+
+// Android's share sheet fails on very large text, so stay well under its limit.
+const SHARE_LIMIT = 300_000
+
+// ---------------------------------------------------------------------------
+// Attachment preview (settings screen)
+// ---------------------------------------------------------------------------
+
+function AttachmentView({ file, preview }: { file: FileInfo; preview: boolean }) {
+	const { Button, Stack, Text } = Design
+	const [failed, setFailed] = useState(false)
+	const showImage = preview && isImage(file) && !failed
+
+	return (
+		<Stack spacing={4}>
+			{showImage ? (
+				<Image
+					source={{ uri: file.proxyUrl ?? file.url }}
+					style={{ width: '100%', height: 180, borderRadius: 8 }}
+					resizeMode="contain"
+					onError={() => setFailed(true)}
+				/>
+			) : null}
+			<Text variant="text-sm/medium" selectable>
+				{file.name}
+				{file.size ? ` · ${formatSize(file.size)}` : ''}
+				{failed ? ' · preview unavailable (the link may have expired)' : ''}
+			</Text>
+			<Button
+				variant="secondary"
+				size="sm"
+				text="Open link"
+				onPress={() => {
+					Linking.openURL(file.url).catch(() => {})
+				}}
+			/>
+		</Stack>
+	)
+}
+
+// ---------------------------------------------------------------------------
+// Chat row manager
 // ---------------------------------------------------------------------------
 
 // Finds Discord's chat row manager: a class whose prototype has `generate`.
@@ -158,6 +318,39 @@ export default plugin({
 				},
 			])
 
+		const copyLog = () => {
+			try {
+				Clipboard.setString(build(entries, s.exportFormat))
+				Alert.alert('Copied', `${entries.length} message(s) copied as ${s.exportFormat}.`)
+			} catch (e) {
+				Alert.alert("Couldn't copy", String(e))
+			}
+		}
+
+		const shareLog = async () => {
+			try {
+				let subset = entries
+				let text = build(subset, s.exportFormat)
+
+				// Newest entries come first, so trimming keeps the most recent ones.
+				while (text.length > SHARE_LIMIT && subset.length > 1) {
+					subset = subset.slice(0, Math.max(1, Math.floor(subset.length / 2)))
+					text = build(subset, s.exportFormat)
+				}
+
+				if (subset.length < entries.length) {
+					Alert.alert(
+						'Log is large',
+						`Sharing the newest ${subset.length} of ${entries.length} messages. Use Copy to export everything.`,
+					)
+				}
+
+				await Share.share({ title: 'Message Logger export', message: text })
+			} catch (e) {
+				Alert.alert("Couldn't share", String(e))
+			}
+		}
+
 		return (
 			<ScrollView contentContainerStyle={{ gap: 16, padding: 16 }}>
 				<TableRowGroup title="Message Logger">
@@ -189,6 +382,55 @@ export default plugin({
 					/>
 				</TableRowGroup>
 
+				<TableRowGroup title="Attachments">
+					<TableSwitchRow
+						label="Save attachments"
+						subLabel="Keeps links to deleted files in the log. Applies to new deletions."
+						value={s.logAttachments}
+						onValueChange={(v: boolean) => storage.set({ logAttachments: v })}
+					/>
+					<TableSwitchRow
+						label="Show image previews"
+						subLabel="Loads saved images in the log below"
+						value={s.showPreviews}
+						onValueChange={(v: boolean) => storage.set({ showPreviews: v })}
+					/>
+				</TableRowGroup>
+
+				<Stack spacing={8}>
+					<Text variant="text-md/semibold">Export</Text>
+					<Stack spacing={8} direction="horizontal">
+						<Button
+							size="sm"
+							text="Text"
+							variant={s.exportFormat === 'text' ? 'primary' : 'secondary'}
+							onPress={() => storage.set({ exportFormat: 'text' })}
+						/>
+						<Button
+							size="sm"
+							text="JSON"
+							variant={s.exportFormat === 'json' ? 'primary' : 'secondary'}
+							onPress={() => storage.set({ exportFormat: 'json' })}
+						/>
+					</Stack>
+					<Stack spacing={8} direction="horizontal">
+						<Button
+							size="sm"
+							variant="secondary"
+							text="Copy"
+							disabled={!entries.length}
+							onPress={copyLog}
+						/>
+						<Button
+							size="sm"
+							variant="secondary"
+							text="Share"
+							disabled={!entries.length}
+							onPress={shareLog}
+						/>
+					</Stack>
+				</Stack>
+
 				<Stack spacing={8}>
 					<Text variant="text-md/semibold">Saved messages ({entries.length})</Text>
 					{entries.length ? (
@@ -203,15 +445,27 @@ export default plugin({
 
 				{entries.slice(0, 50).map(e => (
 					<Card key={`${e.id}-${e.deletedAt}`}>
-						<Stack spacing={4}>
+						<Stack spacing={6}>
 							<Text variant="text-md/semibold">{e.author}</Text>
 							<Text variant="text-sm/medium">
 								{e.where} · {new Date(e.deletedAt).toLocaleString()}
 							</Text>
 							<Text variant="text-md/medium" selectable>
 								{e.content || '(no text)'}
-								{e.attachments ? `  [${e.attachments} attachment(s)]` : ''}
 							</Text>
+							{e.files?.length ? (
+								e.files.map(f => (
+									<AttachmentView
+										key={`${f.url}`}
+										file={f}
+										preview={s.showPreviews}
+									/>
+								))
+							) : e.attachments ? (
+								<Text variant="text-sm/medium">
+									{e.attachments} attachment(s), links weren't saved
+								</Text>
+							) : null}
 						</Stack>
 					</Card>
 				))}
@@ -244,7 +498,8 @@ export default plugin({
 		cleanup(
 			onFluxEventDispatched('MESSAGE_DELETE', (payload: any) => {
 				try {
-					if (!getSettings().enabled) return payload
+					const s = getSettings()
+					if (!s.enabled) return payload
 					if (deletedIds.has(payload.id)) return undefined // already kept
 
 					const message = getCachedMessage(payload.channelId, payload.id)
@@ -252,9 +507,9 @@ export default plugin({
 						log('Deleted message not cached, letting it through:', payload.id)
 						return payload
 					}
-					if (isOwn(message) && !getSettings().logOwn) return payload
+					if (isOwn(message) && !s.logOwn) return payload
 
-					const entry = makeEntry(message, payload.channelId, payload.guildId)
+					const entry = makeEntry(message, payload.channelId, payload.guildId, s.logAttachments)
 					deletedIds.add(payload.id)
 					save(entry)
 					log('Kept deleted message', payload.id, 'from', entry.author)
@@ -279,7 +534,7 @@ export default plugin({
 
 					for (const message of found) {
 						deletedIds.add(message.id)
-						save(makeEntry(message, payload.channelId, payload.guildId))
+						save(makeEntry(message, payload.channelId, payload.guildId, s.logAttachments))
 					}
 					log(`Kept ${found.length} bulk-deleted message(s)`)
 					refresh()
@@ -298,9 +553,8 @@ export default plugin({
 					const cls = exports.prototype?.generate ? exports : exports.default
 					log(`Patching generate() on module ${id}`)
 					cleanup(
-						// Docs: after hooks receive (args, ret, self). Handle both signatures.
-						after(cls.prototype, 'generate', (a: any, b: any) => {
-							const row = Array.isArray(a) ? b : a
+						// An `after` hook receives only the return value.
+						after(cls.prototype, 'generate', (row: any) => {
 							try {
 								const msg = row?.message
 								if (msg?.id && deletedIds.has(msg.id)) {
