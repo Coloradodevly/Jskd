@@ -26,6 +26,33 @@
         }
       }
     },
+    "evantanner.ghost-ping-notifications": {
+      "name": "Ghost Ping Notifications",
+      "description": "Sends an Android notification when someone pings you and then deletes the message. Needs Message Logger.",
+      "author": "Evan Tanner",
+      "icon": "BellIcon",
+      "channels": {
+        "latest": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.ghost-ping-notifications@1.0.0.zip",
+          "sha256": "302def2f55efea03d5e626125e39644e0abaf064534d9188661de65a03855d83",
+          "size": 2192,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            },
+            "evantanner.message-logger": {
+              "version": ">=1.6 <2"
+            }
+          }
+        }
+      }
+    },
     "evantanner.message-logger": {
       "name": "Message Logger",
       "description": "Keeps deleted messages on screen in red, shows what edited messages said before, saves a log with attachments and export, warns you about ghost pings, and shares them with other plugins.",
