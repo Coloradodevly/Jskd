@@ -835,8 +835,8 @@ function BrowseTab({ updater }: { updater: Updater }) {
 /*  Screen                                                                    */
 /* -------------------------------------------------------------------------- */
 
-function PluginManager() {
-	const { Stack, Button } = Design
+function PluginManager({ plugin: self }: { plugin?: AnyPlugin }) {
+	const { Stack, Button, Text } = Design
 	const [tab, setTab] = useState<'installed' | 'browse'>('installed')
 	// Shared, so a check done on one tab shows on the other.
 	const updater = useUpdates()
@@ -847,6 +847,12 @@ function PluginManager() {
 				contentContainerStyle={{ gap: 12, paddingBottom: 32 }}
 				keyboardShouldPersistTaps="handled"
 			>
+				{self ? (
+					<Text variant="text-sm/medium" color="text-muted">
+						{self.manifest.name} v{versionOf(self)}
+					</Text>
+				) : null}
+
 				<Stack spacing={8} direction="horizontal">
 					<Button
 						text="Installed"
@@ -1073,7 +1079,7 @@ export default plugin({
 		cleanup(startUpdateChecker())
 	},
 
-	SettingsComponent() {
-		return <PluginManager />
+	SettingsComponent({ api }) {
+		return <PluginManager plugin={api?.plugin as AnyPlugin | undefined} />
 	},
 })
