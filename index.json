@@ -176,6 +176,30 @@
         }
       }
     },
+    "evantannermeta.clean-urls": {
+      "name": "Clean URLs",
+      "description": "Removes tracking parameters from links you send and receive.",
+      "author": "EvanTannermeta (https://github.com/EvanTannermeta \"GitHub\")",
+      "icon": "LinkIcon",
+      "channels": {
+        "latest": "1.0.0"
+      },
+      "versions": {
+        "1.0.0": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantannermeta.clean-urls@1.0.0.zip",
+          "sha256": "5460377ab2def06a02cc3280e0cfda9f9307ab12639dda7abc7c5d3edeba31f2",
+          "size": 2495,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    },
     "evantannermeta.plugin-browser": {
       "name": "Plugin Browser",
       "description": "Browse, install, update and manage Revenge plugins from one screen in Settings → Revenge.",
