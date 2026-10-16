@@ -58,6 +58,12 @@ interface Settings {
 	ghostRoles: boolean
 	/** JSON array of GhostEntry, newest first. */
 	ghostLog: string
+	/** Show what a message said before it was edited, above the new text. */
+	showEdits: boolean
+	/** Also track your own edits. */
+	editsOwn: boolean
+	/** JSON array of EditRecord, newest first. */
+	editLog: string
 	/** Download deleted messages' attachment files to this device (needs the native part). */
 	saveFilesToDevice: boolean
 	/** Also copy attachments as new messages arrive, so they survive link expiry. */
@@ -102,6 +108,9 @@ const DEFAULTS: Settings = {
 	ghostEveryone: false,
 	ghostRoles: false,
 	ghostLog: '[]',
+	showEdits: true,
+	editsOwn: false,
+	editLog: '[]',
 	saveFilesToDevice: true,
 	preSaveFiles: false,
 	exportFormat: 'text',
@@ -444,6 +453,64 @@ function reportGhost(
 }
 
 // ---------------------------------------------------------------------------
+// Edit history
+// ---------------------------------------------------------------------------
+
+interface EditRecord {
+	id: string
+	channelId: string
+	guildId?: string
+	author: string
+	where: string
+	/** Earlier versions of the text, oldest first. */
+	history: string[]
+	/** What the message really says now (the chat may show more than this). */
+	current: string
+	/** When it was last edited. */
+	at: number
+}
+
+const MAX_EDIT_RECORDS = 300
+const MAX_VERSIONS_KEPT = 10
+const MAX_VERSIONS_SHOWN = 3
+const MAX_VERSION_CHARS = 500
+
+/** Edited messages by id. The newest edit is last. Loaded from storage when the plugin starts. */
+const edits = new Map<string, EditRecord>()
+let resetEdits: (() => void) | undefined
+
+function parseEdits(raw: string): EditRecord[] {
+	try {
+		const parsed = JSON.parse(raw)
+		return Array.isArray(parsed) ? parsed : []
+	} catch {
+		return []
+	}
+}
+
+/** What the chat shows: earlier versions as struck-through quotes, then the real text. */
+function withHistory(record: Pick<EditRecord, 'history' | 'current'>): string {
+	const before = record.history.slice(-MAX_VERSIONS_SHOWN).map(version => {
+		const text =
+			version.length > MAX_VERSION_CHARS
+				? `${version.slice(0, MAX_VERSION_CHARS)}…`
+				: version
+		const lines = text.split('\n').filter(line => line.trim())
+		if (!lines.length) return '> ~~(no text)~~'
+
+		// Strikethrough breaks code blocks, so those are only quoted.
+		const strike = !text.includes('```')
+		return lines
+			.map(line => (strike ? `> ~~${line.split('~~').join('')}~~` : `> ${line}`))
+			.join('\n')
+	})
+
+	return record.current
+		? `${before.join('\n\n')}\n${record.current}`
+		: before.join('\n\n')
+}
+
+// ---------------------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------------------
 
@@ -589,6 +656,7 @@ export default plugin({
 		const s: Settings = { ...DEFAULTS, ...(storage.use() ?? {}) }
 		const entries = parseEntries(s.entries)
 		const ghosts = parseGhost(s.ghostLog)
+		const editRecords = parseEdits(s.editLog)
 		const [maxText, setMaxText] = useState(String(s.maxLogged))
 
 		// What the native part has saved on this device. undefined = not loaded yet or unavailable.
@@ -714,6 +782,20 @@ export default plugin({
 					/>
 				</TableRowGroup>
 
+				<TableRowGroup title="Edits">
+					<TableSwitchRow
+						label="Show edit history in chat"
+						subLabel="Puts what a message said before above the new text, struck through"
+						value={s.showEdits}
+						onValueChange={(v: boolean) => storage.set({ showEdits: v })}
+					/>
+					<TableSwitchRow
+						label="Include my own edits"
+						value={s.editsOwn}
+						onValueChange={(v: boolean) => storage.set({ editsOwn: v })}
+					/>
+				</TableRowGroup>
+
 				<TableRowGroup title="Ghost pings">
 					<TableSwitchRow
 						label="Alert on ghost pings"
@@ -766,6 +848,44 @@ export default plugin({
 							</Text>
 							<Text variant="text-md/medium" selectable>
 								{g.content || '(no text)'}
+							</Text>
+						</Stack>
+					</Card>
+				))}
+
+				<Stack spacing={8}>
+					<Text variant="text-md/semibold">Edited messages ({editRecords.length})</Text>
+					{editRecords.length ? (
+						<Button
+							variant="secondary"
+							text="Clear edit history"
+							onPress={() => {
+								resetEdits?.()
+								storage.set({ editLog: '[]' })
+							}}
+						/>
+					) : (
+						<Text variant="text-sm/medium">
+							None yet. Messages show up here after someone edits one you can see.
+						</Text>
+					)}
+				</Stack>
+
+				{editRecords.slice(0, 30).map(r => (
+					<Card key={r.id}>
+						<Stack spacing={4}>
+							<Text variant="text-md/semibold">{r.author}</Text>
+							<Text variant="text-sm/medium">
+								{r.where} · edited {r.history.length} time(s) ·{' '}
+								{new Date(r.at).toLocaleString()}
+							</Text>
+							{r.history.map((version, i) => (
+								<Text key={`${r.id}-${i}`} variant="text-sm/medium" selectable>
+									{`Before: ${version || '(no text)'}`}
+								</Text>
+							))}
+							<Text variant="text-md/medium" selectable>
+								{`Now: ${r.current || '(no text)'}`}
 							</Text>
 						</Stack>
 					</Card>
@@ -1074,6 +1194,101 @@ export default plugin({
 					}
 				} catch (e) {
 					log('MESSAGE_UPDATE handler failed:', String(e))
+				}
+				return payload
+			}),
+		)
+
+		log('Step 3a: tracking edits (shows what a message said before)')
+		// Stored newest first, kept in memory oldest first.
+		for (const record of parseEdits(getSettings().editLog).reverse()) {
+			edits.set(record.id, record)
+		}
+
+		const saveEdits = () => {
+			while (edits.size > MAX_EDIT_RECORDS) {
+				edits.delete(edits.keys().next().value as string)
+			}
+			storage.set({ editLog: JSON.stringify([...edits.values()].reverse()) })
+		}
+
+		resetEdits = () => edits.clear()
+		cleanup(() => {
+			resetEdits = undefined
+			edits.clear()
+		})
+
+		cleanup(
+			onFluxEventDispatched('MESSAGE_UPDATE', (payload: any) => {
+				// Edits the text Discord is about to store. Never blocks the event.
+				try {
+					const s = getSettings()
+					const m = payload?.message
+					if (!s.showEdits || !m?.id || typeof m.content !== 'string') return payload
+
+					const channelId = m.channel_id ?? m.channelId ?? payload.channelId
+					const guildId = payload.guildId ?? m.guild_id
+					const known = edits.get(m.id)
+
+					// Same text as last time (a link preview, a pin...): put the history back,
+					// because Discord would otherwise replace it with the plain text.
+					if (known && m.content === known.current) {
+						m.content = withHistory(known)
+						return payload
+					}
+
+					// Only real edits count, and only when the earlier text is known.
+					if (!m.edited_timestamp) return payload
+					const cached = getCachedMessage(channelId, m.id)
+					const before = known ? known.current : cached?.content
+					if (typeof before !== 'string' || before === m.content) return payload
+					// Not the real text: the cache is showing history we added and forgot.
+					if (!known && before.startsWith('> ~~')) return payload
+					if (!s.editsOwn && (isOwn(m) || isOwn(cached))) return payload
+
+					const record: EditRecord = known ?? {
+						id: m.id,
+						channelId,
+						guildId,
+						author: authorOf(m.author ? m : (cached ?? m)),
+						where: describeWhere(channelId, guildId),
+						history: [],
+						current: before,
+						at: 0,
+					}
+
+					record.history.push(before)
+					if (record.history.length > MAX_VERSIONS_KEPT) record.history.shift()
+					record.current = m.content
+					record.at = Date.now()
+
+					// Move to the end, so the newest edit is last.
+					edits.delete(record.id)
+					edits.set(record.id, record)
+					saveEdits()
+
+					m.content = withHistory(record)
+				} catch (e) {
+					log('Edit tracking failed:', String(e))
+				}
+				return payload
+			}),
+
+			// Brings the history back when Discord reloads a channel's messages.
+			// Best effort: if this event isn't the one Discord uses, nothing happens.
+			onFluxEventDispatched('LOAD_MESSAGES_SUCCESS', (payload: any) => {
+				try {
+					if (!getSettings().showEdits || !edits.size) return payload
+					if (!Array.isArray(payload?.messages)) return payload
+
+					for (const m of payload.messages) {
+						const record = m?.id ? edits.get(m.id) : undefined
+						if (record && m.content === record.current) {
+							m.content = withHistory(record)
+						}
+					}
+				} catch (e) {
+					log('Restoring edit history failed:', String(e))
 				}
 				return payload
 			}),
