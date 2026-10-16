@@ -48,6 +48,16 @@ interface Settings {
 	logAttachments: boolean
 	/** Show image previews for saved attachments in the log. */
 	showPreviews: boolean
+	/** Alert when someone pings you and then deletes the message. */
+	ghostPing: boolean
+	/** Also alert when the ping is edited out of a message. */
+	ghostEdits: boolean
+	/** Count @everyone and @here as pings. */
+	ghostEveryone: boolean
+	/** Count pings of roles you have. */
+	ghostRoles: boolean
+	/** JSON array of GhostEntry, newest first. */
+	ghostLog: string
 	/** Download deleted messages' attachment files to this device (needs the native part). */
 	saveFilesToDevice: boolean
 	/** Also copy attachments as new messages arrive, so they survive link expiry. */
@@ -87,6 +97,11 @@ const DEFAULTS: Settings = {
 	showLabel: true,
 	logAttachments: true,
 	showPreviews: true,
+	ghostPing: true,
+	ghostEdits: true,
+	ghostEveryone: false,
+	ghostRoles: false,
+	ghostLog: '[]',
 	saveFilesToDevice: true,
 	preSaveFiles: false,
 	exportFormat: 'text',
@@ -263,6 +278,172 @@ function makeEntry(
 }
 
 // ---------------------------------------------------------------------------
+// Ghost-ping alerts
+// ---------------------------------------------------------------------------
+
+interface GhostEntry {
+	id: string
+	author: string
+	where: string
+	content: string
+	/** What they pinged, for example "pinged you". */
+	kind: string
+	how: 'deleted' | 'edited'
+	at: number
+}
+
+interface TrackedPing {
+	id: string
+	channelId: string
+	guildId?: string
+	author: string
+	content: string
+	kind: string
+}
+
+const MAX_TRACKED = 300
+
+/** Pings aimed at you, remembered from the moment they arrive (works even in channels you haven't opened). */
+const trackedPings = new Map<string, TrackedPing>()
+const alertedIds = new Set<string>()
+const alertQueue: GhostEntry[] = []
+let alertOpen = false
+
+// Set in start() so these helpers can see the current settings and save the log.
+let readSettings: () => Settings = () => DEFAULTS
+let ghostSink: ((entry: GhostEntry) => void) | undefined
+
+function parseGhost(raw: string): GhostEntry[] {
+	try {
+		const parsed = JSON.parse(raw)
+		return Array.isArray(parsed) ? parsed : []
+	} catch {
+		return []
+	}
+}
+
+const currentUserId = (): string | undefined =>
+	(Stores as any).UserStore?.getCurrentUser?.()?.id
+
+const authorOf = (message: any): string =>
+	message?.author?.globalName ??
+	message?.author?.global_name ??
+	message?.author?.username ??
+	'Unknown'
+
+/** The kind of ping a message contains for you, or null. Works on cached messages and raw gateway payloads. */
+function pingKind(m: any, guildId?: string): string | null {
+	const me = currentUserId()
+	if (!me || !m) return null
+	const s = readSettings()
+
+	const mentions: any[] = m.mentions ?? []
+	if (mentions.some(x => (typeof x === 'string' ? x : x?.id) === me)) return 'pinged you'
+
+	if (s.ghostEveryone && (m.mentionEveryone ?? m.mention_everyone)) {
+		return 'pinged @everyone or @here'
+	}
+
+	if (s.ghostRoles && guildId) {
+		const roleIds: string[] = m.mentionRoles ?? m.mention_roles ?? []
+		if (roleIds.length) {
+			const mine: string[] =
+				(Stores as any).GuildMemberStore?.getMember?.(guildId, me)?.roles ?? []
+			if (roleIds.some(r => mine.includes(r))) return 'pinged one of your roles'
+		}
+	}
+	return null
+}
+
+/** Remembers a new message if it pings you. */
+function trackPing(message: any, guildId?: string) {
+	if (!message?.id || isOwn(message)) return
+	const kind = pingKind(message, guildId)
+	if (!kind) return
+
+	trackedPings.set(message.id, {
+		id: message.id,
+		channelId: message.channel_id ?? message.channelId,
+		guildId,
+		author: authorOf(message),
+		content: String(message.content ?? '').slice(0, 300),
+		kind,
+	})
+	if (trackedPings.size > MAX_TRACKED) {
+		trackedPings.delete(trackedPings.keys().next().value as string)
+	}
+}
+
+function showNextAlert() {
+	if (alertOpen) return
+	const entry = alertQueue.shift()
+	if (!entry) return
+
+	alertOpen = true
+	let closed = false
+	const close = () => {
+		if (closed) return
+		closed = true
+		alertOpen = false
+		setTimeout(showNextAlert, 300)
+	}
+
+	Alert.alert(
+		'Ghost ping',
+		`${entry.author} ${entry.kind} in ${entry.where} and then ${
+			entry.how === 'deleted' ? 'deleted the message' : 'edited the ping out'
+		}.\n\n${entry.content || '(no text)'}`,
+		[{ text: 'Okay', onPress: close }],
+		{ cancelable: true, onDismiss: close },
+	)
+}
+
+/** Call when a message was deleted or edited. Alerts only if it had pinged you. */
+function reportGhost(
+	id: string,
+	how: GhostEntry['how'],
+	channelId: string,
+	guildId: string | undefined,
+	cached: any,
+) {
+	if (!readSettings().ghostPing || alertedIds.has(id)) return
+
+	let tracked = trackedPings.get(id)
+	if (!tracked && cached && !isOwn(cached)) {
+		const kind = pingKind(cached, guildId)
+		if (kind) {
+			tracked = {
+				id,
+				channelId,
+				guildId,
+				author: authorOf(cached),
+				content: String(cached.content ?? '').slice(0, 300),
+				kind,
+			}
+		}
+	}
+	if (!tracked) return
+
+	if (alertedIds.size > 500) alertedIds.clear()
+	alertedIds.add(id)
+	trackedPings.delete(id)
+
+	const entry: GhostEntry = {
+		id,
+		author: tracked.author,
+		where: describeWhere(tracked.channelId ?? channelId, tracked.guildId ?? guildId),
+		content: tracked.content,
+		kind: tracked.kind,
+		how,
+		at: Date.now(),
+	}
+	log('Ghost ping from', entry.author, `(${how})`)
+	ghostSink?.(entry)
+	alertQueue.push(entry)
+	showNextAlert()
+}
+
+// ---------------------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------------------
 
@@ -368,6 +549,23 @@ function AttachmentView({
 // Chat row manager
 // ---------------------------------------------------------------------------
 
+// Finds Discord's Flux dispatcher, so we can ask the chat to redraw a message.
+const withDispatcher = createFilterGenerator<[]>(
+	(_args, _id, exports) => {
+		const t = typeof exports
+		if (!exports || (t !== 'object' && t !== 'function')) return false
+		const d = typeof exports.dispatch === 'function' ? exports : exports.default
+		return (
+			!!d &&
+			typeof d.dispatch === 'function' &&
+			typeof d.subscribe === 'function' &&
+			typeof d.unsubscribe === 'function' &&
+			typeof d.wait === 'function'
+		)
+	},
+	() => 'message-logger.dispatcher',
+)
+
 // Finds Discord's chat row manager: a class whose prototype has `generate`.
 const withGenerate = createFilterGenerator<[]>(
 	(_args, _id, exports) => {
@@ -390,6 +588,7 @@ export default plugin({
 		const storage = api.jsonStorage
 		const s: Settings = { ...DEFAULTS, ...(storage.use() ?? {}) }
 		const entries = parseEntries(s.entries)
+		const ghosts = parseGhost(s.ghostLog)
 		const [maxText, setMaxText] = useState(String(s.maxLogged))
 
 		// What the native part has saved on this device. undefined = not loaded yet or unavailable.
@@ -514,6 +713,63 @@ export default plugin({
 						}}
 					/>
 				</TableRowGroup>
+
+				<TableRowGroup title="Ghost pings">
+					<TableSwitchRow
+						label="Alert on ghost pings"
+						subLabel="Warns you when someone pings you, then deletes the message"
+						value={s.ghostPing}
+						onValueChange={(v: boolean) => storage.set({ ghostPing: v })}
+					/>
+					<TableSwitchRow
+						label="Also alert when the ping is edited out"
+						value={s.ghostEdits}
+						onValueChange={(v: boolean) => storage.set({ ghostEdits: v })}
+					/>
+					<TableSwitchRow
+						label="Include @everyone and @here"
+						value={s.ghostEveryone}
+						onValueChange={(v: boolean) => storage.set({ ghostEveryone: v })}
+					/>
+					<TableSwitchRow
+						label="Include role pings"
+						subLabel="Only roles you have"
+						value={s.ghostRoles}
+						onValueChange={(v: boolean) => storage.set({ ghostRoles: v })}
+					/>
+				</TableRowGroup>
+
+				<Stack spacing={8}>
+					<Text variant="text-md/semibold">Ghost pings ({ghosts.length})</Text>
+					{ghosts.length ? (
+						<Button
+							variant="secondary"
+							text="Clear ghost pings"
+							onPress={() => storage.set({ ghostLog: '[]' })}
+						/>
+					) : (
+						<Text variant="text-sm/medium">
+							None yet. They show up here after an alert.
+						</Text>
+					)}
+				</Stack>
+
+				{ghosts.slice(0, 30).map(g => (
+					<Card key={`${g.id}-${g.at}`}>
+						<Stack spacing={4}>
+							<Text variant="text-md/semibold">
+								{g.author} {g.kind}
+							</Text>
+							<Text variant="text-sm/medium">
+								{g.where} · {new Date(g.at).toLocaleString()} ·{' '}
+								{g.how === 'deleted' ? 'deleted' : 'edited out'}
+							</Text>
+							<Text variant="text-md/medium" selectable>
+								{g.content || '(no text)'}
+							</Text>
+						</Stack>
+					</Card>
+				))}
 
 				<TableRowGroup title="Attachments">
 					<TableSwitchRow
@@ -640,18 +896,69 @@ export default plugin({
 		const storage = jsonStorage as JsonStorage<Settings>
 		const getSettings = (): Settings => ({ ...DEFAULTS, ...(storage.cache ?? {}) })
 
+		readSettings = getSettings
+		ghostSink = entry => {
+			const next = [entry, ...parseGhost(getSettings().ghostLog)].slice(0, 100)
+			storage.set({ ghostLog: JSON.stringify(next) })
+		}
+		cleanup(() => {
+			ghostSink = undefined
+			readSettings = () => DEFAULTS
+			alertQueue.length = 0
+			trackedPings.clear()
+		})
+
 		const save = (entry: Entry) => {
 			const s = getSettings()
 			const next = [entry, ...parseEntries(s.entries)].slice(0, s.maxLogged)
 			storage.set({ entries: JSON.stringify(next) })
 		}
 
-		// Ask Discord's store to tell the UI something changed so rows redraw.
-		const refresh = () => {
+		// Discord's dispatcher, found below. Used to make the chat redraw kept messages right away.
+		let dispatcher: any
+
+		log('Step 1b: looking for the Flux dispatcher (instant redraw)')
+		cleanup(
+			getModules(withDispatcher(), (exports: any) => {
+				dispatcher = typeof exports.dispatch === 'function' ? exports : exports.default
+				log('Found the Flux dispatcher')
+			}),
+		)
+
+		// Makes the chat redraw kept messages immediately. Attachment-only messages have no text
+		// to color or label, so they get a short "(deleted attachment)" line.
+		const refresh = (messages: any[], channelId: string, guildId?: string) => {
 			setTimeout(() => {
+				// Deferred: dispatching from inside a dispatch is not allowed.
 				try {
-					;(Stores as any).MessageStore?.emitChange?.()
-				} catch {}
+					for (const m of messages) {
+						const text = String(m.content ?? '')
+						const attachmentOnly = !text.trim() && (m.attachments?.length ?? 0) > 0
+						dispatcher?.dispatch({
+							type: 'MESSAGE_UPDATE',
+							guildId,
+							message: {
+								id: m.id,
+								channel_id: channelId,
+								guild_id: guildId,
+								content:
+									attachmentOnly && getSettings().showLabel
+										? '(deleted attachment)'
+										: text,
+							},
+						})
+					}
+				} catch (e) {
+					log('Redraw through the dispatcher failed:', String(e))
+				}
+
+				// Fallback: nudge the stores the chat rows listen to.
+				const st = Stores as any
+				for (const name of ['MessageStore', 'UserStore', 'GuildMemberStore']) {
+					try {
+						st[name]?.emitChange?.()
+					} catch {}
+				}
 			}, 0)
 		}
 
@@ -660,10 +967,14 @@ export default plugin({
 			onFluxEventDispatched('MESSAGE_DELETE', (payload: any) => {
 				try {
 					const s = getSettings()
+					const message = getCachedMessage(payload.channelId, payload.id)
+
+					// Ghost-ping check comes first so it works even with the logger off.
+					reportGhost(payload.id, 'deleted', payload.channelId, payload.guildId, message)
+
 					if (!s.enabled) return payload
 					if (deletedIds.has(payload.id)) return undefined // already kept
 
-					const message = getCachedMessage(payload.channelId, payload.id)
 					if (!message) {
 						log('Deleted message not cached, letting it through:', payload.id)
 						return payload
@@ -682,7 +993,7 @@ export default plugin({
 						void keepFilesOnDevice(entry.id, entry.files, s.preSaveFiles)
 					}
 					log('Kept deleted message', payload.id, 'from', entry.author)
-					refresh()
+					refresh([message], payload.channelId, payload.guildId)
 					return undefined // block the delete so the message stays
 				} catch (e) {
 					log('MESSAGE_DELETE handler failed, letting it through:', String(e))
@@ -693,6 +1004,17 @@ export default plugin({
 			onFluxEventDispatched('MESSAGE_DELETE_BULK', (payload: any) => {
 				try {
 					const s = getSettings()
+
+					for (const id of payload.ids as string[]) {
+						reportGhost(
+							id,
+							'deleted',
+							payload.channelId,
+							payload.guildId,
+							getCachedMessage(payload.channelId, id),
+						)
+					}
+
 					if (!s.enabled) return payload
 
 					const found = (payload.ids as string[])
@@ -715,7 +1037,7 @@ export default plugin({
 						}
 					}
 					log(`Kept ${found.length} bulk-deleted message(s)`)
-					refresh()
+					refresh(found, payload.channelId, payload.guildId)
 					return undefined
 				} catch (e) {
 					log('MESSAGE_DELETE_BULK handler failed, letting it through:', String(e))
@@ -724,7 +1046,40 @@ export default plugin({
 			}),
 		)
 
-		log('Step 3: pre-saving new attachments (only when that setting is on)')
+		log('Step 3: watching for pings aimed at you (ghost-ping alerts)')
+		cleanup(
+			onFluxEventDispatched('MESSAGE_CREATE', (payload: any) => {
+				// Never block this event: always hand the payload back.
+				try {
+					if (getSettings().ghostPing && !payload?.optimistic) {
+						trackPing(payload?.message, payload?.guildId ?? payload?.message?.guild_id)
+					}
+				} catch (e) {
+					log('Ping tracking failed:', String(e))
+				}
+				return payload
+			}),
+
+			onFluxEventDispatched('MESSAGE_UPDATE', (payload: any) => {
+				try {
+					const m = payload?.message
+					const s = getSettings()
+					// Only real edits that carry a full mention list count.
+					if (s.ghostPing && s.ghostEdits && m?.id && m.edited_timestamp && Array.isArray(m.mentions)) {
+						const channelId = m.channel_id ?? m.channelId
+						const guildId = payload.guildId ?? m.guild_id
+						if (!pingKind(m, guildId)) {
+							reportGhost(m.id, 'edited', channelId, guildId, getCachedMessage(channelId, m.id))
+						}
+					}
+				} catch (e) {
+					log('MESSAGE_UPDATE handler failed:', String(e))
+				}
+				return payload
+			}),
+		)
+
+		log('Step 3b: pre-saving new attachments (only when that setting is on)')
 		cleanup(
 			onFluxEventDispatched('MESSAGE_CREATE', (payload: any) => {
 				// Never block this event: always hand the payload back.
