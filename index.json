@@ -28,10 +28,10 @@
     },
     "evantanner.message-logger": {
       "name": "Message Logger",
-      "description": "Keeps deleted messages on screen in red and saves a log of them, with attachments and export.",
+      "description": "Keeps deleted messages on screen in red, saves a log with attachments and export, and warns you about ghost pings.",
       "author": "Evan Tanner",
       "channels": {
-        "latest": "1.3.0"
+        "latest": "1.4.1"
       },
       "versions": {
         "1.0.0": {
@@ -90,6 +90,19 @@
           "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.message-logger@1.3.0.zip",
           "sha256": "be5e069cb035efed4326dd56e30be2415207250988dfcdc068cb42181490386d",
           "size": 17293,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "1.4.1": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.message-logger@1.4.1.zip",
+          "sha256": "a3589db6a393a269d560051e857094cef1fb54603feb73f2f06c62a09c008a57",
+          "size": 18746,
           "dependencies": {
             "revenge.api": {
               "version": ">=1 <2"
