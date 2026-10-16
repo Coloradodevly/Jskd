@@ -210,9 +210,18 @@ async function uninstallPlugin(plugin: AnyPlugin) {
 /*  Filters                                                                   */
 /* -------------------------------------------------------------------------- */
 
-type FilterKey = 'enabled' | 'disabled' | 'updates' | 'errors' | 'reload'
+type FilterKey =
+	| 'installed'
+	| 'notInstalled'
+	| 'enabled'
+	| 'disabled'
+	| 'updates'
+	| 'errors'
+	| 'reload'
 
 const FILTERS: Record<FilterKey, { label: string; desc: string }> = {
+	installed: { label: 'Installed', desc: 'Plugins you have installed' },
+	notInstalled: { label: 'Not installed', desc: 'Plugins you can still install' },
 	enabled: { label: 'Enabled', desc: 'Plugins that are turned on' },
 	disabled: { label: 'Disabled', desc: 'Plugins that are turned off' },
 	updates: { label: 'Update available', desc: 'Has a newer version' },
@@ -220,22 +229,68 @@ const FILTERS: Record<FilterKey, { label: string; desc: string }> = {
 	reload: { label: 'Needs reload', desc: 'Restart Discord to apply' },
 }
 
+const INSTALLED_FILTERS: FilterKey[] = [
+	'enabled',
+	'disabled',
+	'updates',
+	'errors',
+	'reload',
+]
+
+const BROWSE_FILTERS: FilterKey[] = [
+	'installed',
+	'notInstalled',
+	'enabled',
+	'disabled',
+	'updates',
+	'errors',
+	'reload',
+]
+
+/** Every selected filter has to match. `plugin` is undefined for plugins that aren't installed. */
+function matchesFilters(
+	plugin: AnyPlugin | undefined,
+	id: string,
+	filters: Set<FilterKey>,
+	updateById: Map<string, PluginUpdate>,
+) {
+	const enabled = !!plugin && isPluginEnabledInActiveSlot(plugin)
+
+	return (
+		(!filters.has('installed') || !!plugin) &&
+		(!filters.has('notInstalled') || !plugin) &&
+		(!filters.has('enabled') || enabled) &&
+		(!filters.has('disabled') || (!!plugin && !enabled)) &&
+		(!filters.has('updates') || updateById.has(id)) &&
+		(!filters.has('errors') || (!!plugin && isPluginErrored(plugin))) &&
+		(!filters.has('reload') || (!!plugin && isPluginPendingReload(plugin)))
+	)
+}
+
 function FilterPanel({
+	keys,
 	active,
 	onChange,
+	updatesChecked,
 }: {
+	keys: FilterKey[]
 	active: Set<FilterKey>
 	onChange: (next: Set<FilterKey>) => void
+	updatesChecked: boolean
 }) {
 	const { TableRowGroup, TableSwitchRow } = Design
 
 	return (
 		<TableRowGroup title="Show only (all selected must match)">
-			{(Object.keys(FILTERS) as FilterKey[]).map(key => (
+			{keys.map(key => (
 				<TableSwitchRow
 					key={key}
 					label={FILTERS[key].label}
-					subLabel={FILTERS[key].desc}
+					subLabel={
+						key === 'updates' && !updatesChecked
+							? 'Tap "Check for updates" first'
+							: FILTERS[key].desc
+					}
 					value={active.has(key)}
 					onValueChange={(on: boolean) => {
 						const next = new Set(active)
@@ -245,6 +300,138 @@ function FilterPanel({
 				/>
 			))}
 		</TableRowGroup>
+	)
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Update checking shared by both tabs                                       */
+/* -------------------------------------------------------------------------- */
+
+function useUpdates() {
+	const [updates, setUpdates] = useState<PluginUpdate[] | null>(null)
+	const [checking, setChecking] = useState(false)
+	const [installing, setInstalling] = useState(false)
+
+	const updateById = useMemo(
+		() => new Map((updates ?? []).map(u => [u.id, u])),
+		[updates],
+	)
+	const safeIds = useMemo(
+		() => (updates ? selectSafeUpdates(updates) : new Set<string>()),
+		[updates],
+	)
+
+	const checkUpdates = useCallback(async () => {
+		setChecking(true)
+		try {
+			const { errors } = await refreshAllRepos()
+			setUpdates(await listUpdates())
+			if (errors.length)
+				openAlert(
+					'Some repositories failed to refresh',
+					errors.map(e => `${e.url}: ${errorText(e.error)}`).join('\n'),
+				)
+		} catch (e) {
+			openAlert("Couldn't check for updates", errorText(e))
+		} finally {
+			setChecking(false)
+		}
+	}, [])
+
+	const runUpdate = async (ids: Set<string>) => {
+		if (!ids.size) return
+		setInstalling(true)
+		try {
+			const { installed, pending, errors } = await updatePlugins(ids)
+			await resyncPluginSources().catch(noop)
+			setUpdates(await listUpdates())
+
+			const lines = [
+				installed.length ? `Updated: ${installed.join(', ')}` : null,
+				pending.length
+					? `Applies after reload: ${pending.join(', ')}`
+					: null,
+				...errors.map(e => `${e.id} failed: ${errorText(e.error)}`),
+			].filter(Boolean)
+			openAlert('Update finished', lines.join('\n\n') || 'Nothing changed.')
+		} catch (e) {
+			openAlert('Update failed', errorText(e))
+		} finally {
+			setInstalling(false)
+		}
+	}
+
+	return {
+		updates,
+		updateById,
+		safeIds,
+		checking,
+		installing,
+		checkUpdates,
+		updateAll: () => runUpdate(safeIds),
+		updateOne: (id: string) => runUpdate(new Set([id])),
+	}
+}
+
+type Updater = ReturnType<typeof useUpdates>
+
+/** Filter button + update buttons, identical on both tabs. */
+function PluginToolbar({
+	filters,
+	showFilters,
+	onToggleFilters,
+	updater,
+}: {
+	filters: Set<FilterKey>
+	showFilters: boolean
+	onToggleFilters: () => void
+	updater: Updater
+}) {
+	const { Stack, Text, Button } = Design
+	const { updates, safeIds, checking, installing, checkUpdates, updateAll } =
+		updater
+
+	return (
+		<Stack spacing={8}>
+			<Stack spacing={8} direction="horizontal">
+				<Button
+					text={filters.size ? `Filter (${filters.size})` : 'Filter'}
+					variant={showFilters || filters.size ? 'primary' : 'secondary'}
+					size="sm"
+					onPress={onToggleFilters}
+				/>
+				<Button
+					text={
+						safeIds.size
+							? `Update all (${safeIds.size})`
+							: updates
+								? 'No updates'
+								: 'Check for updates'
+					}
+					variant="secondary"
+					size="sm"
+					loading={checking || installing}
+					disabled={checking || installing || (!!updates && !safeIds.size)}
+					onPress={safeIds.size ? updateAll : checkUpdates}
+				/>
+				{updates ? (
+					<Button
+						text="Recheck"
+						variant="tertiary"
+						size="sm"
+						disabled={checking || installing}
+						onPress={checkUpdates}
+					/>
+				) : null}
+			</Stack>
+
+			{updates && updates.length > safeIds.size ? (
+				<Text variant="text-sm/medium" color="text-muted">
+					{updates.length - safeIds.size} update(s) skipped because they are
+					blocked or would break another plugin.
+				</Text>
+			) : null}
+		</Stack>
 	)
 }
 
@@ -309,65 +496,14 @@ function InstalledPluginCard({
 	)
 }
 
-function InstalledTab() {
-	const { Stack, Text, Button } = Design
+function InstalledTab({ updater }: { updater: Updater }) {
+	const { Stack, Text } = Design
 	const tick = usePluginListTick()
+	const { updates, updateById } = updater
 
 	const [query, setQuery] = useState('')
 	const [showFilters, setShowFilters] = useState(false)
 	const [filters, setFilters] = useState<Set<FilterKey>>(new Set())
-	const [updates, setUpdates] = useState<PluginUpdate[] | null>(null)
-	const [checking, setChecking] = useState(false)
-	const [installing, setInstalling] = useState(false)
-
-	const updateById = useMemo(
-		() => new Map((updates ?? []).map(u => [u.id, u])),
-		[updates],
-	)
-	const safeIds = useMemo(
-		() => (updates ? selectSafeUpdates(updates) : new Set<string>()),
-		[updates],
-	)
-
-	const checkUpdates = useCallback(async () => {
-		setChecking(true)
-		try {
-			const { errors } = await refreshAllRepos()
-			setUpdates(await listUpdates())
-			if (errors.length)
-				openAlert(
-					'Some repositories failed to refresh',
-					errors.map(e => `${e.url}: ${errorText(e.error)}`).join('\n'),
-				)
-		} catch (e) {
-			openAlert("Couldn't check for updates", errorText(e))
-		} finally {
-			setChecking(false)
-		}
-	}, [])
-
-	const updateAll = async () => {
-		if (!safeIds.size) return
-		setInstalling(true)
-		try {
-			const { installed, pending, errors } = await updatePlugins(safeIds)
-			await resyncPluginSources().catch(noop)
-			setUpdates(await listUpdates())
-
-			const lines = [
-				installed.length ? `Updated: ${installed.join(', ')}` : null,
-				pending.length
-					? `Applies after reload: ${pending.join(', ')}`
-					: null,
-				...errors.map(e => `${e.id} failed: ${errorText(e.error)}`),
-			].filter(Boolean)
-			openAlert('Update finished', lines.join('\n\n') || 'Nothing changed.')
-		} catch (e) {
-			openAlert('Update failed', errorText(e))
-		} finally {
-			setInstalling(false)
-		}
-	}
 
 	const plugins = useMemo(() => {
 		const q = query.trim().toLowerCase()
@@ -383,14 +519,7 @@ function InstalledTab() {
 					if (!hay.includes(q)) return false
 				}
 
-				const enabled = isPluginEnabledInActiveSlot(p)
-				return (
-					(!filters.has('enabled') || enabled) &&
-					(!filters.has('disabled') || !enabled) &&
-					(!filters.has('updates') || updateById.has(p.manifest.id)) &&
-					(!filters.has('errors') || isPluginErrored(p)) &&
-					(!filters.has('reload') || isPluginPendingReload(p))
-				)
+				return matchesFilters(p, p.manifest.id, filters, updateById)
 			})
 			.sort((a, b) => a.manifest.name.localeCompare(b.manifest.name))
 		// `tick` makes this re-run when plugin state changes.
@@ -401,48 +530,21 @@ function InstalledTab() {
 		<View style={{ gap: 12 }}>
 			<Stack spacing={8}>
 				<SearchInput onChange={(v: string) => setQuery(v)} />
-				<Stack spacing={8} direction="horizontal">
-					<Button
-						text={filters.size ? `Filter (${filters.size})` : 'Filter'}
-						variant={showFilters || filters.size ? 'primary' : 'secondary'}
-						size="sm"
-						onPress={() => setShowFilters(s => !s)}
-					/>
-					<Button
-						text={
-							safeIds.size
-								? `Update all (${safeIds.size})`
-								: updates
-									? 'No updates'
-									: 'Check for updates'
-						}
-						variant="secondary"
-						size="sm"
-						loading={checking || installing}
-						disabled={checking || installing || (!!updates && !safeIds.size)}
-						onPress={safeIds.size ? updateAll : checkUpdates}
-					/>
-					{updates ? (
-						<Button
-							text="Recheck"
-							variant="tertiary"
-							size="sm"
-							disabled={checking || installing}
-							onPress={checkUpdates}
-						/>
-					) : null}
-				</Stack>
+				<PluginToolbar
+					filters={filters}
+					showFilters={showFilters}
+					onToggleFilters={() => setShowFilters(s => !s)}
+					updater={updater}
+				/>
 			</Stack>
 
 			{showFilters ? (
-				<FilterPanel active={filters} onChange={setFilters} />
-			) : null}
-
-			{updates && updates.length > safeIds.size ? (
-				<Text variant="text-sm/medium" color="text-muted">
-					{updates.length - safeIds.size} update(s) skipped because they are
-					blocked or would break another plugin.
-				</Text>
+				<FilterPanel
+					keys={INSTALLED_FILTERS}
+					active={filters}
+					onChange={setFilters}
+					updatesChecked={!!updates}
+				/>
 			) : null}
 
 			{plugins.length === 0 ? (
@@ -528,15 +630,18 @@ function describePlan(plan: InstallPlan) {
 	return [...lines, ...warnings].join('\n')
 }
 
-function BrowseTab() {
+function BrowseTab({ updater }: { updater: Updater }) {
 	const { Card, Stack, Text, Button } = Design
 	const tick = usePluginListTick()
+	const { updates, updateById, safeIds, installing, updateOne } = updater
 
 	const [entries, setEntries] = useState<BrowseEntry[] | null>(null)
 	const [repos, setRepoList] = useState<Repo[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [query, setQuery] = useState('')
+	const [showFilters, setShowFilters] = useState(false)
+	const [filters, setFilters] = useState<Set<FilterKey>>(new Set())
 	const [busyId, setBusyId] = useState<string | null>(null)
 
 	const load = useCallback(async (refresh: boolean) => {
@@ -559,16 +664,22 @@ function BrowseTab() {
 
 	const visible = useMemo(() => {
 		const q = query.trim().toLowerCase()
-		return (entries ?? []).filter(
-			({ listing: l }) =>
-				!q ||
-				[l.id, l.name, l.description, l.author]
+		return (entries ?? []).filter(({ listing: l }) => {
+			if (
+				q &&
+				![l.id, l.name, l.description, l.author]
 					.filter(Boolean)
 					.join(' ')
 					.toLowerCase()
-					.includes(q),
-		)
-	}, [entries, query])
+					.includes(q)
+			)
+				return false
+
+			return matchesFilters(pList.get(l.id), l.id, filters, updateById)
+		})
+		// `tick` makes this re-run when plugin state changes.
+		// biome-ignore lint/correctness/useExhaustiveDependencies: see above
+	}, [entries, query, filters, updateById, tick])
 
 	const install = async ({ listing, repoUrl }: BrowseEntry) => {
 		setBusyId(listing.id)
@@ -602,6 +713,12 @@ function BrowseTab() {
 		<View style={{ gap: 12 }}>
 			<Stack spacing={8}>
 				<SearchInput onChange={(v: string) => setQuery(v)} />
+				<PluginToolbar
+					filters={filters}
+					showFilters={showFilters}
+					onToggleFilters={() => setShowFilters(s => !s)}
+					updater={updater}
+				/>
 				<Button
 					text="Refresh repositories"
 					variant="secondary"
@@ -611,6 +728,15 @@ function BrowseTab() {
 					onPress={() => load(true)}
 				/>
 			</Stack>
+
+			{showFilters ? (
+				<FilterPanel
+					keys={BROWSE_FILTERS}
+					active={filters}
+					onChange={setFilters}
+					updatesChecked={!!updates}
+				/>
+			) : null}
 
 			{repos.length ? (
 				<Text variant="text-sm/medium" color="text-muted">
@@ -633,10 +759,10 @@ function BrowseTab() {
 
 			{visible.map(entry => {
 				const { listing } = entry
-				const installed = pList.has(listing.id)
+				const installedPlugin = pList.get(listing.id)
+				const update = updateById.get(listing.id)
+				const canUpdate = !!update && safeIds.has(listing.id)
 				const latest = listing.channels.latest ?? listing.order[0]
-				// `tick` keeps the Installed state fresh after installs/uninstalls.
-				void tick
 
 				return (
 					<Card key={listing.id}>
@@ -656,19 +782,47 @@ function BrowseTab() {
 							{listing.description ? (
 								<Text variant="text-md/medium">{listing.description}</Text>
 							) : null}
+							{installedPlugin ? (
+								<Text variant="text-sm/medium" color="text-muted">
+									{[
+										`Installed v${versionOf(installedPlugin)}`,
+										isPluginEnabledInActiveSlot(installedPlugin)
+											? 'enabled'
+											: 'disabled',
+										update ? `update → v${update.available}` : null,
+									]
+										.filter(Boolean)
+										.join(' · ')}
+								</Text>
+							) : null}
 							{entry.repoName ? (
 								<Text variant="text-xs/medium" color="text-muted">
 									{entry.repoName}
 								</Text>
 							) : null}
-							<Button
-								text={installed ? 'Installed' : 'Install'}
-								variant={installed ? 'secondary' : 'primary'}
-								size="sm"
-								loading={busyId === listing.id}
-								disabled={installed || busyId !== null}
-								onPress={() => install(entry)}
-							/>
+							{update ? (
+								<Button
+									text={
+										canUpdate
+											? `Update to v${update.available}`
+											: 'Update blocked'
+									}
+									variant="primary"
+									size="sm"
+									loading={installing}
+									disabled={!canUpdate || installing || busyId !== null}
+									onPress={() => updateOne(listing.id)}
+								/>
+							) : (
+								<Button
+									text={installedPlugin ? 'Installed' : 'Install'}
+									variant={installedPlugin ? 'secondary' : 'primary'}
+									size="sm"
+									loading={busyId === listing.id}
+									disabled={!!installedPlugin || busyId !== null}
+									onPress={() => install(entry)}
+								/>
+							)}
 						</Stack>
 					</Card>
 				)
@@ -684,6 +838,8 @@ function BrowseTab() {
 function PluginManager() {
 	const { Stack, Button } = Design
 	const [tab, setTab] = useState<'installed' | 'browse'>('installed')
+	// Shared, so a check done on one tab shows on the other.
+	const updater = useUpdates()
 
 	return (
 		<Page>
@@ -706,7 +862,11 @@ function PluginManager() {
 					/>
 				</Stack>
 
-				{tab === 'installed' ? <InstalledTab /> : <BrowseTab />}
+				{tab === 'installed' ? (
+					<InstalledTab updater={updater} />
+				) : (
+					<BrowseTab updater={updater} />
+				)}
 			</ScrollView>
 		</Page>
 	)
