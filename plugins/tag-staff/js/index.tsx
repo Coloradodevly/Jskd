@@ -301,7 +301,7 @@ const withGenerate = createFilterGenerator<[]>(
 export default plugin({
 	jsonStorage: { load: true, default: DEFAULTS },
 
-	SettingsComponent({ api }: { api: { jsonStorage: JsonStorage<Settings> } }) {
+	SettingsComponent({ api }) {
 		const {
 			Button,
 			Card,
@@ -312,7 +312,7 @@ export default plugin({
 			TableRowGroup,
 			TableSwitchRow,
 		} = Design
-		const storage = api.jsonStorage
+		const storage = api.jsonStorage as unknown as JsonStorage<Settings>
 		const s: Settings = { ...DEFAULTS, ...(storage.use() ?? {}) }
 		const overrides = parseOverrides(s.overrides)
 
@@ -523,10 +523,8 @@ export default plugin({
 					const cls = exports.prototype?.generate ? exports : exports.default
 					log(`Step 3: patching generate() on module ${id}`)
 					cleanup(
-						// Docs: after hooks receive (args, ret, self). Your probe's first
-						// parameter was the row itself, so handle both signatures.
-						after(cls.prototype, 'generate', (a: any, b: any) => {
-							const ret = Array.isArray(a) ? b : a
+						// An `after` hook receives only the return value, here the row itself.
+						after(cls.prototype, 'generate', (ret: any) => {
 							try {
 								applyTag(getSettings(), ret)
 							} catch (e) {
