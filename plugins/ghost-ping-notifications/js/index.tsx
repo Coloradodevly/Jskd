@@ -87,16 +87,15 @@ let logger: PluginLogger | undefined
 export default plugin({
 	jsonStorage: { load: true, default: DEFAULTS },
 
-	SettingsComponent({ api }: { api: { jsonStorage: JsonStorage<Settings> } }) {
+	SettingsComponent({ api }) {
 		const { Button, Stack, Text, TableRowGroup, TableSwitchRow } = Design
-		const storage = api.jsonStorage
+		const storage = api.jsonStorage as unknown as JsonStorage<Settings>
 		const s: Settings = { ...DEFAULTS, ...(storage.use() ?? {}) }
 
 		// undefined = not checked yet, null = the native part isn't loaded
 		const [status, setStatus] = useState<{ enabled: boolean; sdk: number } | null | undefined>()
 		const [refreshKey, setRefreshKey] = useState(0)
 
-		// biome-ignore lint/correctness/useExhaustiveDependencies: refresh after asking for permission
 		useEffect(() => {
 			let alive = true
 			statusNative()
