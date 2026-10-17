@@ -1,0 +1,42 @@
+# Lints and type-checks the plugin sources before they are released.
+# Runs on pushes and pull requests that touch plugin code or tooling config.
+
+name: Checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/**'
+      - 'package.json'
+      - 'tsconfig.json'
+      - 'biome.json'
+      - '.github/workflows/checks.yml'
+  pull_request:
+    paths:
+      - 'plugins/**'
+      - 'package.json'
+      - 'tsconfig.json'
+      - 'biome.json'
+      - '.github/workflows/checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install
+
+      - name: Lint (Biome)
+        run: bun run lint
+
+      # Runs even if linting failed, so both problems show up in one run.
+      - name: Type-check
+        if: ${{ !cancelled() }}
+        run: bunx tsc --noEmit
