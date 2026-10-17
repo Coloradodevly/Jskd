@@ -1,6 +1,6 @@
 import { TableRowAssetIcon } from '@revenge-mod/components'
 import { Design } from '@revenge-mod/discord/design'
-import { Stores } from '@revenge-mod/discord/flux'
+import { onAnyFluxEventDispatched, Stores } from '@revenge-mod/discord/flux'
 import { after } from '@revenge-mod/patcher'
 import type { JsonStorage } from '@revenge-mod/json-storage'
 import { BundleUpdaterManager } from '@revenge-mod/discord/native'
@@ -219,6 +219,31 @@ async function runProbe2(): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
+// Event recorder: logs account-related Flux events, with the names of the functions that
+// dispatched them (from the stack). Keys and types only, never values.
+// ---------------------------------------------------------------------------
+
+const RECORD_RE = /MULTI_ACCOUNT|SWITCH|LOGIN|LOGOUT|ACCOUNT/i
+const recorded: string[] = []
+
+function shortStack(): string[] {
+	const frames = String(new Error().stack ?? '').split('\n').slice(1)
+	return frames
+		.map(f => f.trim().replace(/\(.*[\\/]/, '(').replace(/^at\s+/, ''))
+		.filter(f => f && !/onAnyFluxEventDispatched|shortStack|recordEvent/.test(f))
+		.slice(0, 12)
+}
+
+function recordEvent(payload: any) {
+	try {
+		const type = String(payload?.type ?? '')
+		if (!RECORD_RE.test(type) || recorded.length >= 60) return
+		recorded.push(`${new Date().toLocaleTimeString()}  ${type}  {${describeKeys(payload, 20)}}`)
+		for (const frame of shortStack()) recorded.push(`    ${frame}`)
+	} catch {}
+}
+
+// ---------------------------------------------------------------------------
 // Probe 3: look harder for the "switch account" function (searches prototypes and one level deep),
 // and describe the MultiAccountManagerNative export. Names and types only.
 // ---------------------------------------------------------------------------
@@ -387,6 +412,17 @@ function ProbeScreen(props: { api?: { jsonStorage: JsonStorage<Settings> } }) {
 			/>
 			<Button
 				variant="secondary"
+				text="Show recorded account events"
+				onPress={() =>
+					setResult(
+						recorded.length
+							? recorded.join('\n')
+							: 'Nothing recorded yet. Switch or add an account with Discord\'s own screens, then tap this again.',
+					)
+				}
+			/>
+			<Button
+				variant="secondary"
 				text="Run probe 3 (find the switch function)"
 				disabled={running}
 				onPress={async () => {
@@ -434,6 +470,14 @@ export default plugin({
 	start({ cleanup, jsonStorage }) {
 		const storage = jsonStorage as JsonStorage<Settings>
 		const flags: Settings = { ...DEFAULTS, ...(storage.cache ?? {}) }
+
+		// Records account-related events (names and types only) so we can see how Discord switches accounts.
+		cleanup(
+			onAnyFluxEventDispatched((payload: any) => {
+				recordEvent(payload)
+				return payload
+			}),
+		)
 
 		if (flags.forceMultiAccount) {
 			try {
