@@ -314,7 +314,7 @@
       "author": "EvanTannermeta (https://github.com/EvanTannermeta \"GitHub\")",
       "icon": "DownloadIcon",
       "channels": {
-        "latest": "1.3.2"
+        "latest": "1.4.0"
       },
       "versions": {
         "1.0.0": {
@@ -425,6 +425,19 @@
           "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantannermeta.plugin-browser@1.3.2.zip",
           "sha256": "24b14a6a0a43995c2bea9dd37c806eca3658cbb9721028db49dd3ee727004aaf",
           "size": 7217,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "1.4.0": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantannermeta.plugin-browser@1.4.0.zip",
+          "sha256": "b6471a3766fb08b2c8cdbfd9b4e987e2d3b3b3e5ad14fdb722bd42c7897a44ec",
+          "size": 7776,
           "dependencies": {
             "revenge.api": {
               "version": ">=1 <2"
