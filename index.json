@@ -71,7 +71,7 @@
       "description": "Keeps deleted messages on screen in red, shows what edited messages said before, saves a log with attachments and export, warns you about ghost pings, and shares them with other plugins.",
       "author": "Evan Tanner",
       "channels": {
-        "latest": "1.6.0"
+        "latest": "1.6.1"
       },
       "versions": {
         "1.0.0": {
@@ -169,6 +169,19 @@
           "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.message-logger@1.6.0.zip",
           "sha256": "75c8fb79ee78b38a3989b7d1b7db87d3c0d1b904cc58d41b3bfe7f59984a13a3",
           "size": 19692,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "1.6.1": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.message-logger@1.6.1.zip",
+          "sha256": "4081af44fadc6b4741881d89d19ad165cd425b0539d81b90fa267d412471f8f1",
+          "size": 19691,
           "dependencies": {
             "revenge.api": {
               "version": ">=1 <2"
