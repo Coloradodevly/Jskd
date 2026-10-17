@@ -438,7 +438,7 @@ function useUpdates() {
 	const [installing, setInstalling] = useState(false)
 
 	const updateById = useMemo(
-		() => new Map((updates ?? []).map(u => [u.id, u])),
+		() => new Map((updates ?? []).map(u => [u.id, u] as const)),
 		[updates],
 	)
 	const safeIds = useMemo(
@@ -679,7 +679,6 @@ function InstalledTab({ updater }: { updater: Updater }) {
 			})
 			.sort((a, b) => a.manifest.name.localeCompare(b.manifest.name))
 		// `tick` makes this re-run when plugin state changes.
-		// biome-ignore lint/correctness/useExhaustiveDependencies: see above
 	}, [query, filters, updateById, tick])
 
 	return (
@@ -837,7 +836,6 @@ function BrowseTab({ updater }: { updater: Updater }) {
 			return matchesFilters(pList.get(l.id), l.id, filters, updateById)
 		})
 		// `tick` makes this re-run when plugin state changes.
-		// biome-ignore lint/correctness/useExhaustiveDependencies: see above
 	}, [entries, query, filters, updateById, tick])
 
 	/** `version` pins that exact version. Leave it out to follow the latest. */
@@ -1345,7 +1343,7 @@ function registerBrowserSetting() {
 export default plugin({
 	start({ cleanup, logger, plugin: self }) {
 		pluginLogger = logger
-		selfPlugin = self as AnyPlugin
+		selfPlugin = self as unknown as AnyPlugin
 
 		cleanup(startUpdateChecker())
 
@@ -1358,6 +1356,6 @@ export default plugin({
 	},
 
 	SettingsComponent({ api }) {
-		return <PluginManager plugin={api?.plugin as AnyPlugin | undefined} />
+		return <PluginManager plugin={api?.plugin as unknown as AnyPlugin | undefined} />
 	},
 })
