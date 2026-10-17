@@ -4,7 +4,7 @@
 	"name": "Account Probe",
 	"description": "Looks for Discord's account-switching internals. Reads function names only, never tokens.",
 	"author": "Evan Tanner",
-	"version": "1.1.0",
+	"version": "1.2.1",
 	"dependencies": {
 		"revenge.api": { "version": ">=1 <2" },
 		"discord": { "version": "*" }
