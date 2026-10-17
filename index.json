@@ -31,13 +31,26 @@
       "description": "Looks for Discord's account-switching internals. Reads function names only, never tokens.",
       "author": "Evan Tanner",
       "channels": {
-        "latest": "1.0.0"
+        "latest": "1.0.1"
       },
       "versions": {
         "1.0.0": {
           "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.account-probe@1.0.0.zip",
           "sha256": "e52f09181d0b349c0eb925f976e33f1caf1fbc68b7368a0018a7738405c5fac6",
           "size": 1840,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "1.0.1": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/evantanner.account-probe@1.0.1.zip",
+          "sha256": "a961f8fe8b1fa327f18559c1871a7325174764e491f9d3407c6514175d0e7e35",
+          "size": 2189,
           "dependencies": {
             "revenge.api": {
               "version": ">=1 <2"
