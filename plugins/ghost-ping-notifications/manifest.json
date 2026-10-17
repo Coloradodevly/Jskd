@@ -5,7 +5,7 @@
 	"description": "Sends an Android notification when someone pings you and then deletes the message. Needs Message Logger.",
 	"icon": "BellIcon",
 	"author": "Evan Tanner",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"dependencies": {
 		"revenge.api": {
 			"version": ">=1 <2"
