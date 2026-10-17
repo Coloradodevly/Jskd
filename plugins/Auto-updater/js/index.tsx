@@ -114,8 +114,8 @@ export default plugin({
 	jsonStorage: { load: true, default: DEFAULTS },
 
 	// Shown as the plugin's "Settings" page in Settings > Revenge > Plugins.
-	SettingsComponent({ api }: { api: { jsonStorage: JsonStorage<Settings> } }) {
-		const storage = api.jsonStorage
+	SettingsComponent({ api }) {
+		const storage = api.jsonStorage as unknown as JsonStorage<Settings>
 		const s: Settings = { ...DEFAULTS, ...(storage.use() ?? {}) }
 
 		return (
@@ -204,7 +204,7 @@ export default plugin({
 					return
 				}
 				if (id === known) {
-					log('Step 4: no change (still', id + ')')
+					log('Step 4: no change (still', `${id})`)
 					return
 				}
 				log('Step 4: CHANGE DETECTED', known, '->', id)
