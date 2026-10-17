@@ -1,5 +1,7 @@
+import { TableRowAssetIcon } from '@revenge-mod/components'
 import { Design } from '@revenge-mod/discord/design'
 import { Stores } from '@revenge-mod/discord/flux'
+import { after } from '@revenge-mod/patcher'
 import type { JsonStorage } from '@revenge-mod/json-storage'
 import { BundleUpdaterManager } from '@revenge-mod/discord/native'
 import {
@@ -216,12 +218,125 @@ async function runProbe2(): Promise<string> {
 	return text
 }
 
+// ---------------------------------------------------------------------------
+// Probe 3: look harder for the "switch account" function (searches prototypes and one level deep),
+// and describe the MultiAccountManagerNative export. Names and types only.
+// ---------------------------------------------------------------------------
+
+const ACTION_RE =
+	/switch.*account|account.*switch|add.*account|remove.*account|login.*account|logout.*account|multi.?account|swap.*account|change.*account|select.*account/i
+
+function allNames(obj: any): string[] {
+	const names = new Set<string>()
+	let cur = obj
+	for (let depth = 0; cur && cur !== Object.prototype && cur !== Function.prototype && depth < 4; depth++) {
+		try {
+			for (const n of Object.getOwnPropertyNames(cur)) if (n !== 'constructor') names.add(n)
+		} catch {}
+		cur = Object.getPrototypeOf(cur)
+	}
+	return [...names]
+}
+
+function matchesIn(obj: any): string[] {
+	const hits: string[] = []
+	if (!obj || (typeof obj !== 'object' && typeof obj !== 'function')) return hits
+
+	const check = (target: any, path: string) => {
+		for (const n of allNames(target)) {
+			if (!ACTION_RE.test(n)) continue
+			let t = '?'
+			try {
+				t = typeof target[n]
+			} catch {}
+			hits.push(`${path}${n}:${t}`)
+		}
+	}
+
+	check(obj, '')
+	let keys: string[] = []
+	try {
+		keys = Object.keys(obj).slice(0, 60)
+	} catch {}
+	for (const k of keys) {
+		let v: any
+		try {
+			v = obj[k]
+		} catch {
+			continue
+		}
+		if (v && (typeof v === 'object' || typeof v === 'function')) check(v, `${k}.`)
+	}
+	return hits
+}
+
+const hasAccountActions = createFilterGenerator<[]>(
+	(_args, _id, exports) => {
+		const t = typeof exports
+		if (!exports || (t !== 'object' && t !== 'function')) return false
+		try {
+			return matchesIn(exports).length > 0 || matchesIn(exports.default).length > 0
+		} catch {
+			return false
+		}
+	},
+	() => 'account-probe.actions',
+)
+
+async function runProbe3(): Promise<string> {
+	const lines: string[] = []
+	const hits: string[] = []
+
+	const stopA = getModules(hasAccountActions(), (exports: any, id: number) => {
+		try {
+			const found = [...matchesIn(exports), ...matchesIn(exports?.default).map(h => `default.${h}`)]
+			if (hits.length < 40) hits.push(`module ${id}: ${found.slice(0, 12).join(', ')}`)
+		} catch {}
+	})
+
+	const info: string[] = []
+	const stopB = getModules(hasManager(), (exports: any, id: number) => {
+		try {
+			const m = exports.MultiAccountManagerNative ?? exports.default?.MultiAccountManagerNative
+			info.push(`module ${id}: typeof=${typeof m}, name="${String((m as any)?.name)}", length=${String((m as any)?.length)}`)
+			info.push(`  own names: ${allNames(m).join(', ') || '(none)'}`)
+		} catch (e) {
+			info.push(`read failed: ${String(e)}`)
+		}
+	})
+
+	await new Promise(r => setTimeout(r, 4000))
+	for (const stop of [stopA, stopB]) {
+		try {
+			stop?.()
+		} catch {}
+	}
+
+	lines.push('== MultiAccountManagerNative ==')
+	lines.push(...(info.length ? info : ['not found']))
+	lines.push('== Modules with account functions (prototype and one level deep) ==')
+	lines.push(...(hits.length ? hits : ['none found in 4 seconds']))
+
+	try {
+		const store = (Stores as any).MultiAccountStore
+		lines.push('== Feature flag ==')
+		lines.push(`getCanUseMultiAccountMobile now: ${String(store.getCanUseMultiAccountMobile?.())}`)
+		lines.push(`accounts in store: ${(store.getUsers?.() ?? []).length}`)
+	} catch {}
+
+	const text = lines.join('\n')
+	console.log(`[account-probe 3]\n${text}`)
+	return text
+}
+
 interface Settings {
 	/** Experimental: add a row to Discord's main Settings. Needs a reload to apply. */
 	registerRow: boolean
+	/** Experimental: make Discord's multi-account feature report that it is available. Needs a reload. */
+	forceMultiAccount: boolean
 }
 
-const DEFAULTS: Settings = { registerRow: false }
+const DEFAULTS: Settings = { registerRow: false, forceMultiAccount: false }
 
 function ProbeScreen(props: { api?: { jsonStorage: JsonStorage<Settings> } }) {
 	const { Button, Text, TableRowGroup, TableSwitchRow } = Design
@@ -241,23 +356,43 @@ function ProbeScreen(props: { api?: { jsonStorage: JsonStorage<Settings> } }) {
 							value={settings.registerRow}
 							onValueChange={(v: boolean) => storage.set({ registerRow: v })}
 						/>
+						<TableSwitchRow
+							label="Force-enable Discord's multi-account feature"
+							subLabel="Discord says this build can't use multi-account on mobile. This makes that check say yes. Off by default. Takes effect after a reload."
+							value={settings.forceMultiAccount}
+							onValueChange={(v: boolean) => storage.set({ forceMultiAccount: v })}
+						/>
 					</TableRowGroup>
 					<Button variant="secondary" text="Reload Revenge" onPress={() => BundleUpdaterManager.reload()} />
 				</>
 			) : null}
 
 			<Text variant="text-md/medium">
-				Tap Run probe 2. When it finishes, long-press the text below to select it, copy it, and paste it to
+				Tap Run probe 3. When it finishes, long-press the text below to select it, copy it, and paste it to
 				Claude. It lists function names only, never tokens.
 			</Text>
 			<Button
 				variant="primary"
-				text={running ? 'Running…' : 'Run probe 2 (account manager and Settings rows)'}
+				text={running ? 'Running…' : 'Run probe 2 again'}
 				disabled={running}
 				onPress={async () => {
 					setRunning(true)
 					try {
 						setResult(await runProbe2())
+					} catch (e) {
+						setResult(`Probe failed: ${String(e)}`)
+					}
+					setRunning(false)
+				}}
+			/>
+			<Button
+				variant="secondary"
+				text="Run probe 3 (find the switch function)"
+				disabled={running}
+				onPress={async () => {
+					setRunning(true)
+					try {
+						setResult(await runProbe3())
 					} catch (e) {
 						setResult(`Probe failed: ${String(e)}`)
 					}
@@ -287,8 +422,8 @@ function ProbeScreen(props: { api?: { jsonStorage: JsonStorage<Settings> } }) {
 	)
 }
 
-// A blank icon: this also tests whether the Settings row accepts one.
-const NoIcon = () => null
+// Same icon helper Revenge uses for its own Settings rows (revenge-bundle-next, settings definitions).
+const RowIcon = () => <TableRowAssetIcon name="UserIcon" />
 
 export default plugin({
 	jsonStorage: { load: true, default: DEFAULTS },
@@ -298,30 +433,40 @@ export default plugin({
 
 	start({ cleanup, jsonStorage }) {
 		const storage = jsonStorage as JsonStorage<Settings>
-		if (!storage.cache?.registerRow) return
+		const flags: Settings = { ...DEFAULTS, ...(storage.cache ?? {}) }
 
-		// The last attempt crashed Discord's RouteSetting with "undefined is not a function", so this
-		// row now also defines the optional hooks Discord's settings rows can have.
+		if (flags.forceMultiAccount) {
+			try {
+				const store = (Stores as any).MultiAccountStore
+				cleanup(after(store, 'getCanUseMultiAccountMobile', () => true))
+				console.log('[account-probe] forced multi-account:', String(store.getCanUseMultiAccountMobile()))
+			} catch (e) {
+				console.log('[account-probe] could not force multi-account:', String(e))
+			}
+		}
+
+		if (!flags.registerRow) return
+
+		// Shape copied from Revenge's own rows (revenge-bundle-next, src/plugins/start/settings/definitions):
+		// `parent: null` marks a top-level row inside a section, and Discord calls `useTitle`.
+		// The first attempts left out `parent` and `useTitle`, which is what crashed RouteSetting.
 		cleanup(
 			onSettingsModulesLoaded(() => {
 				cleanup(
-					registerSettingsSection('ACCOUNT_PROBE', {
-						label: 'Account Probe',
-						settings: ['ACCOUNT_PROBE_MAIN'],
-					}),
 					registerSettingsItem('ACCOUNT_PROBE_MAIN', {
+						parent: null,
 						type: 'route',
-						title: () => 'Account Probe',
-						IconComponent: NoIcon,
-						usePredicate: () => true,
-						useTrailing: () => undefined,
-						useDescription: () => undefined,
-						useIsDisabled: () => false,
+						IconComponent: RowIcon,
+						useTitle: () => 'Account Probe',
 						screen: {
 							route: 'AccountProbeScreen',
 							getComponent: () => ProbeScreen,
 						},
 					} as any),
+					registerSettingsSection('ACCOUNT_PROBE', {
+						label: 'Account Probe',
+						settings: ['ACCOUNT_PROBE_MAIN'],
+					}),
 				)
 			}),
 		)
