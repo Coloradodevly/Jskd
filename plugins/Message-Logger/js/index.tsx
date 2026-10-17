@@ -659,10 +659,10 @@ const withGenerate = createFilterGenerator<[]>(
 export default plugin({
 	jsonStorage: { load: true, default: DEFAULTS },
 
-	SettingsComponent({ api }: { api: { jsonStorage: JsonStorage<Settings> } }) {
+	SettingsComponent({ api }) {
 		const { Button, Card, Stack, Text, TextInput, TableRowGroup, TableSwitchRow } =
 			Design
-		const storage = api.jsonStorage
+		const storage = api.jsonStorage as unknown as JsonStorage<Settings>
 		const s: Settings = { ...DEFAULTS, ...(storage.use() ?? {}) }
 		const entries = parseEntries(s.entries)
 		const ghosts = parseGhost(s.ghostLog)
@@ -674,7 +674,6 @@ export default plugin({
 		const [usage, setUsage] = useState<{ kept: number; pending: number } | undefined>()
 		const [nativeChecked, setNativeChecked] = useState(false)
 
-		// biome-ignore lint/correctness/useExhaustiveDependencies: refresh when the log changes
 		useEffect(() => {
 			let alive = true
 			;(async () => {
