@@ -1,11 +1,11 @@
 import { Design } from '@revenge-mod/discord/design'
 import { Stores } from '@revenge-mod/discord/flux'
-import type { JsonStorage } from '@revenge-mod/json-storage'
 import { getModules } from '@revenge-mod/modules/finders'
 import { createFilterGenerator } from '@revenge-mod/modules/finders/filters'
 import { after } from '@revenge-mod/patcher'
 import { useMemo, useState } from 'react'
 import { ScrollView } from 'react-native'
+import type { JsonStorage } from '@revenge-mod/json-storage'
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -51,7 +51,7 @@ function parseOverrides(raw: string): Record<string, string> {
 function toColor(hex: string): number {
 	const m = HEX.exec(hex.trim())
 	const rgb = Number.parseInt(m ? m[1]! : DEFAULTS.color, 16)
-	return (0xff000000 | rgb) | 0
+	return 0xff000000 | rgb | 0
 }
 
 // ---------------------------------------------------------------------------
@@ -81,7 +81,10 @@ function warnOnce(key: string, ...args: unknown[]) {
 
 const ADMINISTRATOR = BigInt(8) // 1 << 3
 
-function getRoles(guildId: string, guild: any): Record<string, any> | undefined {
+function getRoles(
+	guildId: string,
+	guild: any,
+): Record<string, any> | undefined {
 	const s = Stores as any
 	try {
 		const a = s.GuildRoleStore?.getRoles?.(guildId)
@@ -106,7 +109,10 @@ function isAdmin(guildId: string, userId: string, tagOwner: boolean): boolean {
 
 		const roles = getRoles(guildId, guild)
 		if (!roles) {
-			warnOnce('no-roles', 'Could not find a role source (GuildRoleStore/GuildStore)')
+			warnOnce(
+				'no-roles',
+				'Could not find a role source (GuildRoleStore/GuildStore)',
+			)
 			return false
 		}
 
@@ -213,7 +219,8 @@ function searchUsers(query: string): FoundUser[] {
 
 	const scored: { score: number; user: FoundUser }[] = []
 	try {
-		const users: Record<string, any> = (Stores as any).UserStore?.getUsers?.() ?? {}
+		const users: Record<string, any> =
+			(Stores as any).UserStore?.getUsers?.() ?? {}
 
 		for (const u of Object.values(users)) {
 			const username: string = u?.username ?? ''
@@ -420,9 +427,7 @@ export default plugin({
 									text="Add with default tag"
 									variant="secondary"
 									size="sm"
-									onPress={() =>
-										saveOverrides({ ...overrides, [user.id]: '' })
-									}
+									onPress={() => saveOverrides({ ...overrides, [user.id]: '' })}
 								/>
 							</Stack>
 						</Stack>
@@ -488,9 +493,7 @@ export default plugin({
 									text="Add to custom tag"
 									variant="secondary"
 									size="sm"
-									onPress={() =>
-										setNewTag(t => `${t} ${emoji.code}`.trim())
-									}
+									onPress={() => setNewTag(t => `${t} ${emoji.code}`.trim())}
 								/>
 							</Stack>
 						</Stack>
@@ -498,8 +501,9 @@ export default plugin({
 				))}
 
 				<Text variant="text-sm/medium">
-					Emojis: type normal emojis straight into any tag (for example 👑 STAFF).
-					For a custom server emoji, paste its code like {'<:name:123456789>'}
+					Emojis: type normal emojis straight into any tag (for example 👑
+					STAFF). For a custom server emoji, paste its code like{' '}
+					{'<:name:123456789>'}
 					(the icon is shown on the tag).
 				</Text>
 				<Text variant="text-sm/medium">
@@ -514,7 +518,10 @@ export default plugin({
 		logger = pluginLogger
 		log('Step 1: plugin starting')
 		const storage = jsonStorage as JsonStorage<Settings>
-		const getSettings = (): Settings => ({ ...DEFAULTS, ...(storage.cache ?? {}) })
+		const getSettings = (): Settings => ({
+			...DEFAULTS,
+			...(storage.cache ?? {}),
+		})
 
 		log('Step 2: looking for the chat row manager')
 		cleanup(

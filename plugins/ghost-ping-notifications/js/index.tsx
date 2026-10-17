@@ -1,8 +1,8 @@
 import { Design } from '@revenge-mod/discord/design'
-import type { JsonStorage } from '@revenge-mod/json-storage'
 import { callNativeMethod } from '@revenge-mod/modules/native'
 import { useEffect, useState } from 'react'
 import { Alert, AppState, ScrollView } from 'react-native'
+import type { JsonStorage } from '@revenge-mod/json-storage'
 
 /**
  * Sends an Android notification for ghost pings detected by Message Logger.
@@ -71,7 +71,8 @@ const DEFAULTS: Settings = {
 }
 
 function compose(ping: GhostPing, showText: boolean) {
-	const what = ping.how === 'deleted' ? 'deleted the message' : 'edited the ping out'
+	const what =
+		ping.how === 'deleted' ? 'deleted the message' : 'edited the ping out'
 	const lines = [`${ping.kind} in ${ping.where} and then ${what}.`]
 	if (showText) lines.push(ping.content || '(no text)')
 
@@ -93,7 +94,9 @@ export default plugin({
 		const s: Settings = { ...DEFAULTS, ...(storage.use() ?? {}) }
 
 		// undefined = not checked yet, null = the native part isn't loaded
-		const [status, setStatus] = useState<{ enabled: boolean; sdk: number } | null | undefined>()
+		const [status, setStatus] = useState<
+			{ enabled: boolean; sdk: number } | null | undefined
+		>()
 		const [refreshKey, setRefreshKey] = useState(0)
 
 		useEffect(() => {
@@ -110,7 +113,10 @@ export default plugin({
 			try {
 				const result = await requestPermissionNative()
 				if (result === 'granted') {
-					Alert.alert('Already allowed', 'Discord can already send notifications.')
+					Alert.alert(
+						'Already allowed',
+						'Discord can already send notifications.',
+					)
 				}
 				// Give the system dialog a moment, then re-check.
 				setTimeout(() => setRefreshKey(k => k + 1), 2000)
@@ -125,7 +131,8 @@ export default plugin({
 					'Ghost ping from Example',
 					'pinged you in Example Server · #general and then deleted the message.',
 				)
-				if (result !== 'shown') Alert.alert("Couldn't send the notification", result)
+				if (result !== 'shown')
+					Alert.alert("Couldn't send the notification", result)
 			} catch (e) {
 				Alert.alert("Couldn't send the notification", String(e))
 			}
@@ -184,8 +191,9 @@ export default plugin({
 				</Stack>
 
 				<Text variant="text-sm/medium">
-					Notifications only arrive while Discord is still running in the background.
-					Android may stop it after a while, and then nothing can be detected.
+					Notifications only arrive while Discord is still running in the
+					background. Android may stop it after a while, and then nothing can be
+					detected.
 				</Text>
 			</ScrollView>
 		)
@@ -195,15 +203,21 @@ export default plugin({
 		const { cleanup, jsonStorage, logger: pluginLogger } = api
 		logger = pluginLogger as PluginLogger
 
-		const messageLogger = (api as unknown as { messageLogger?: MessageLoggerApi })
-			.messageLogger
+		const messageLogger = (
+			api as unknown as { messageLogger?: MessageLoggerApi }
+		).messageLogger
 		if (!messageLogger) {
-			logger.warn('Message Logger did not provide its API, so there is nothing to listen to')
+			logger.warn(
+				'Message Logger did not provide its API, so there is nothing to listen to',
+			)
 			return
 		}
 
 		const storage = jsonStorage as JsonStorage<Settings>
-		const getSettings = (): Settings => ({ ...DEFAULTS, ...(storage.cache ?? {}) })
+		const getSettings = (): Settings => ({
+			...DEFAULTS,
+			...(storage.cache ?? {}),
+		})
 
 		cleanup(
 			messageLogger.onGhostPing(ping => {
@@ -216,7 +230,8 @@ export default plugin({
 					const { title, body } = compose(ping, s.showText)
 					notifyNative(title, body)
 						.then(result => {
-							if (result !== 'shown') logger?.warn('Notification not shown:', result)
+							if (result !== 'shown')
+								logger?.warn('Notification not shown:', result)
 						})
 						.catch(e => logger?.warn('Notification failed:', String(e)))
 				} catch (e) {

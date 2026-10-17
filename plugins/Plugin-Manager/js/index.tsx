@@ -9,6 +9,7 @@ import {
 	refreshSettings,
 	registerSettingsItem,
 } from '@revenge-mod/discord/modules/settings'
+import { reloadApp } from '@revenge-mod/modules/native/app'
 import {
 	disablePluginInActiveSlot,
 	enablePluginInActiveSlot,
@@ -41,15 +42,14 @@ import {
 	formatVersion,
 	getPluginContributorName,
 } from '@revenge-mod/plugins/utils'
-import { reloadApp } from '@revenge-mod/modules/native/app'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Image, ScrollView, View } from 'react-native'
 import type { SettingsItem } from '@revenge-mod/discord/modules/settings'
 import type { AnyPlugin } from '@revenge-mod/plugins/_'
 import type {
 	InstallPlan,
-	Repo,
 	PluginUpdate,
+	Repo,
 	RepoPluginListing,
 } from '@revenge-mod/plugins/_/repositories'
 
@@ -346,7 +346,10 @@ type FilterKey =
 
 const FILTERS: Record<FilterKey, { label: string; desc: string }> = {
 	installed: { label: 'Installed', desc: 'Plugins you have installed' },
-	notInstalled: { label: 'Not installed', desc: 'Plugins you can still install' },
+	notInstalled: {
+		label: 'Not installed',
+		desc: 'Plugins you can still install',
+	},
 	enabled: { label: 'Enabled', desc: 'Plugins that are turned on' },
 	disabled: { label: 'Disabled', desc: 'Plugins that are turned off' },
 	updates: { label: 'Update available', desc: 'Has a newer version' },
@@ -501,9 +504,7 @@ function useUpdates() {
 
 			const lines = [
 				installed.length ? `Updated: ${installed.join(', ')}` : null,
-				pending.length
-					? `Applies after reload: ${pending.join(', ')}`
-					: null,
+				pending.length ? `Applies after reload: ${pending.join(', ')}` : null,
 				...errors.map(e => `${e.id} failed: ${errorText(e.error)}`),
 			].filter(Boolean)
 			openAlert('Update finished', lines.join('\n\n') || 'Nothing changed.')
@@ -839,7 +840,10 @@ function BrowseTab({ updater }: { updater: Updater }) {
 	}, [entries, query, filters, updateById, tick])
 
 	/** `version` pins that exact version. Leave it out to follow the latest. */
-	const install = async ({ listing, repoUrl }: BrowseEntry, version?: string) => {
+	const install = async (
+		{ listing, repoUrl }: BrowseEntry,
+		version?: string,
+	) => {
 		setBusyId(listing.id)
 		try {
 			const plan = await planInstall(listing.id, {
@@ -901,7 +905,11 @@ function BrowseTab({ updater }: { updater: Updater }) {
 						variant: 'secondary',
 						onPress: () => resolve(v),
 					})),
-					{ text: 'Cancel', variant: 'secondary', onPress: () => resolve(null) },
+					{
+						text: 'Cancel',
+						variant: 'secondary',
+						onPress: () => resolve(null),
+					},
 				],
 			),
 		)
@@ -1356,6 +1364,8 @@ export default plugin({
 	},
 
 	SettingsComponent({ api }) {
-		return <PluginManager plugin={api?.plugin as unknown as AnyPlugin | undefined} />
+		return (
+			<PluginManager plugin={api?.plugin as unknown as AnyPlugin | undefined} />
+		)
 	},
 })

@@ -81,7 +81,9 @@ const BY_DOMAIN: Record<string, Rule> = {
 const HOST_RE = /^https?:\/\/(?:[^/?#@]*@)?([^/?#:]+)/i
 
 function getHost(url: string): string | undefined {
-	return HOST_RE.exec(url)?.[1]?.toLowerCase().replace(/^www\./, '')
+	return HOST_RE.exec(url)?.[1]
+		?.toLowerCase()
+		.replace(/^www\./, '')
 }
 
 function ruleFor(host: string): Rule | undefined {
@@ -94,7 +96,8 @@ function ruleFor(host: string): Rule | undefined {
 function matches(rule: Rule | undefined, key: string) {
 	if (!rule) return false
 	return (
-		!!rule.params?.includes(key) || !!rule.prefixes?.some(p => key.startsWith(p))
+		!!rule.params?.includes(key) ||
+		!!rule.prefixes?.some(p => key.startsWith(p))
 	)
 }
 
@@ -105,9 +108,7 @@ function shouldRemove(host: string | undefined, rawKey: string) {
 	} catch {}
 	key = key.toLowerCase()
 
-	return (
-		matches(GLOBAL, key) || (!!host && matches(ruleFor(host), key))
-	)
+	return matches(GLOBAL, key) || (!!host && matches(ruleFor(host), key))
 }
 
 /** Cleans one URL. Returns the input unchanged if there is nothing to remove. */

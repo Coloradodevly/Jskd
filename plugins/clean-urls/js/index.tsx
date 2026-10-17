@@ -43,7 +43,8 @@ export default plugin<{ jsonStorage: Settings }>({
 	},
 
 	start({ cleanup, jsonStorage, logger }) {
-		const on = (key: keyof Settings) => jsonStorage.cache?.[key] ?? DEFAULTS[key]
+		const on = (key: keyof Settings) =>
+			jsonStorage.cache?.[key] ?? DEFAULTS[key]
 
 		// Received: clean message content as it enters Discord's stores.
 		// NOTE: a Flux handler must return the payload, or the event is blocked.
@@ -57,11 +58,15 @@ export default plugin<{ jsonStorage: Settings }>({
 				return payload
 			}),
 			...['LOAD_MESSAGES_SUCCESS', 'LOAD_MESSAGES_AROUND_SUCCESS'].map(event =>
-				onFluxEventDispatched(event as 'LOAD_MESSAGES_SUCCESS', (payload: any) => {
-					if (on('cleanReceived'))
-						for (const message of payload?.messages ?? []) cleanMessage(message)
-					return payload
-				}),
+				onFluxEventDispatched(
+					event as 'LOAD_MESSAGES_SUCCESS',
+					(payload: any) => {
+						if (on('cleanReceived'))
+							for (const message of payload?.messages ?? [])
+								cleanMessage(message)
+						return payload
+					},
+				),
 			),
 		)
 

@@ -1,8 +1,8 @@
 import { Page } from '@revenge-mod/components'
 import { Design } from '@revenge-mod/discord/design'
-import type { JsonStorage } from '@revenge-mod/json-storage'
 import { reloadApp } from '@revenge-mod/modules/native/app'
 import { Alert, ScrollView, View } from 'react-native'
+import type { JsonStorage } from '@revenge-mod/json-storage'
 
 // ---------------------------------------------------------------------------
 // Logging: console.log -> `adb logcat | grep ReactNativeJS`
@@ -40,7 +40,11 @@ interface Settings {
 	customUrl: string
 }
 
-const DEFAULTS: Settings = { intervalSec: 60, useCustomUrl: false, customUrl: '' }
+const DEFAULTS: Settings = {
+	intervalSec: 60,
+	useCustomUrl: false,
+	customUrl: '',
+}
 
 const effectiveUrl = (s: Settings) =>
 	s.useCustomUrl && s.customUrl.trim() ? s.customUrl.trim() : DEFAULT_URL
@@ -120,49 +124,49 @@ export default plugin({
 
 		return (
 			<Page>
-			<ScrollView contentContainerStyle={{ gap: 16 }}>
-				<Design.TableRowGroup title="Check interval">
-					{INTERVALS.map(i => (
-						<Design.TableRow
-							key={i.sec}
-							label={`${s.intervalSec === i.sec ? '✓  ' : '     '}${i.label}`}
-							onPress={() => storage.set({ intervalSec: i.sec })}
-						/>
-					))}
-				</Design.TableRowGroup>
-
-				<Design.TableRowGroup title="Bundle link">
-					<Design.TableSwitchRow
-						label="Use custom link"
-						subLabel="Off = default link"
-						value={s.useCustomUrl}
-						onValueChange={(v: boolean) => storage.set({ useCustomUrl: v })}
-					/>
-					{s.useCustomUrl ? (
-						<View style={{ padding: 12 }}>
-							<Design.TextInput
-								label="Custom bundle link"
-								size="md"
-								placeholder={DEFAULT_URL}
-								value={s.customUrl}
-								onChange={(v: string) => storage.set({ customUrl: v })}
+				<ScrollView contentContainerStyle={{ gap: 16 }}>
+					<Design.TableRowGroup title="Check interval">
+						{INTERVALS.map(i => (
+							<Design.TableRow
+								key={i.sec}
+								label={`${s.intervalSec === i.sec ? '✓  ' : '     '}${i.label}`}
+								onPress={() => storage.set({ intervalSec: i.sec })}
 							/>
-						</View>
-					) : null}
-					<Design.TableRow
-						label="Currently checking"
-						subLabel={effectiveUrl(s)}
-					/>
-				</Design.TableRowGroup>
+						))}
+					</Design.TableRowGroup>
 
-				<View>
-					<Design.Button
-						variant="primary"
-						text="Test update prompt"
-						onPress={() => showUpdatePrompt(true, () => {})}
-					/>
-				</View>
-			</ScrollView>
+					<Design.TableRowGroup title="Bundle link">
+						<Design.TableSwitchRow
+							label="Use custom link"
+							subLabel="Off = default link"
+							value={s.useCustomUrl}
+							onValueChange={(v: boolean) => storage.set({ useCustomUrl: v })}
+						/>
+						{s.useCustomUrl ? (
+							<View style={{ padding: 12 }}>
+								<Design.TextInput
+									label="Custom bundle link"
+									size="md"
+									placeholder={DEFAULT_URL}
+									value={s.customUrl}
+									onChange={(v: string) => storage.set({ customUrl: v })}
+								/>
+							</View>
+						) : null}
+						<Design.TableRow
+							label="Currently checking"
+							subLabel={effectiveUrl(s)}
+						/>
+					</Design.TableRowGroup>
+
+					<View>
+						<Design.Button
+							variant="primary"
+							text="Test update prompt"
+							onPress={() => showUpdatePrompt(true, () => {})}
+						/>
+					</View>
+				</ScrollView>
 			</Page>
 		)
 	},
@@ -172,7 +176,10 @@ export default plugin({
 		log('Step 1: plugin starting')
 
 		const storage = jsonStorage as JsonStorage<Settings>
-		const getSettings = (): Settings => ({ ...DEFAULTS, ...(storage.cache ?? {}) })
+		const getSettings = (): Settings => ({
+			...DEFAULTS,
+			...(storage.cache ?? {}),
+		})
 		log('Step 2: loaded settings', JSON.stringify(getSettings()))
 
 		// The loader already pulls the newest bundle on launch, so the first

@@ -1,13 +1,13 @@
 import { Design } from '@revenge-mod/discord/design'
 import { onFluxEventDispatched, Stores } from '@revenge-mod/discord/flux'
 import { Clipboard } from '@revenge-mod/externals/react-native-clipboard'
-import type { JsonStorage } from '@revenge-mod/json-storage'
 import { getModules } from '@revenge-mod/modules/finders'
 import { createFilterGenerator } from '@revenge-mod/modules/finders/filters'
 import { callNativeMethod } from '@revenge-mod/modules/native'
 import { after } from '@revenge-mod/patcher'
 import { useEffect, useState } from 'react'
 import { Alert, Image, Linking, ScrollView, Share } from 'react-native'
+import type { JsonStorage } from '@revenge-mod/json-storage'
 
 // ---------------------------------------------------------------------------
 // Native bridge typings (the Kotlin side of this plugin registers these)
@@ -128,7 +128,7 @@ function parseEntries(raw: string): Entry[] {
 }
 
 // Discord stores colors as signed 32-bit ARGB ints.
-const RED = (0xff000000 | 0xed4245) | 0
+const RED = 0xff000000 | 0xed4245 | 0
 
 // ---------------------------------------------------------------------------
 // Logging
@@ -165,26 +165,49 @@ async function safe<T>(fn: () => Promise<T>): Promise<T | undefined> {
 }
 
 const filesPayload = (files: FileInfo[]) =>
-	JSON.stringify(files.map(f => ({ name: f.name, url: f.url, fallback: f.proxyUrl ?? '' })))
+	JSON.stringify(
+		files.map(f => ({ name: f.name, url: f.url, fallback: f.proxyUrl ?? '' })),
+	)
 
-const nativeSave = (id: string, files: FileInfo[], bucket: 'kept' | 'pending') =>
-	callNativeMethod('evantanner.message-logger.save', [id, filesPayload(files), bucket])
+const nativeSave = (
+	id: string,
+	files: FileInfo[],
+	bucket: 'kept' | 'pending',
+) =>
+	callNativeMethod('evantanner.message-logger.save', [
+		id,
+		filesPayload(files),
+		bucket,
+	])
 const nativeKeep = (id: string) =>
 	callNativeMethod('evantanner.message-logger.keep', [id])
-const nativeListKept = () => callNativeMethod('evantanner.message-logger.listKept', [])
-const nativeStats = () => callNativeMethod('evantanner.message-logger.stats', [])
+const nativeListKept = () =>
+	callNativeMethod('evantanner.message-logger.listKept', [])
+const nativeStats = () =>
+	callNativeMethod('evantanner.message-logger.stats', [])
 const nativeDeleteAll = () =>
 	callNativeMethod('evantanner.message-logger.deleteAllKept', [])
 const nativePurge = () =>
-	callNativeMethod('evantanner.message-logger.purgePending', [String(PENDING_HOURS)])
+	callNativeMethod('evantanner.message-logger.purgePending', [
+		String(PENDING_HOURS),
+	])
 const nativeExport = (name: string, mime: string, content: string) =>
-	callNativeMethod('evantanner.message-logger.exportToDownloads', [name, mime, content])
+	callNativeMethod('evantanner.message-logger.exportToDownloads', [
+		name,
+		mime,
+		content,
+	])
 
 /** Copies a deleted message's files to the device: moves pre-saved copies if there are any, else downloads now. */
-async function keepFilesOnDevice(id: string, files: FileInfo[], usedPreSave: boolean) {
+async function keepFilesOnDevice(
+	id: string,
+	files: FileInfo[],
+	usedPreSave: boolean,
+) {
 	let result: string | undefined
 	if (usedPreSave) result = await safe(() => nativeKeep(id))
-	if (result !== 'kept') result = await safe(() => nativeSave(id, files, 'kept'))
+	if (result !== 'kept')
+		result = await safe(() => nativeSave(id, files, 'kept'))
 	log('Files for', id, '->', result ?? 'native part unavailable')
 }
 
@@ -246,7 +269,7 @@ function collectFiles(message: any): FileInfo[] {
 				name: String(a.filename ?? a.name ?? 'file'),
 				url: String(a.url ?? a.proxy_url ?? a.proxyURL ?? a.proxyUrl ?? ''),
 				proxyUrl:
-					a.proxy_url ?? a.proxyURL ?? a.proxyUrl
+					(a.proxy_url ?? a.proxyURL ?? a.proxyUrl)
 						? String(a.proxy_url ?? a.proxyURL ?? a.proxyUrl)
 						: undefined,
 				type: a.content_type ?? a.contentType ?? undefined,
@@ -350,7 +373,8 @@ function pingKind(m: any, guildId?: string): string | null {
 	const s = readSettings()
 
 	const mentions: any[] = m.mentions ?? []
-	if (mentions.some(x => (typeof x === 'string' ? x : x?.id) === me)) return 'pinged you'
+	if (mentions.some(x => (typeof x === 'string' ? x : x?.id) === me))
+		return 'pinged you'
 
 	if (s.ghostEveryone && (m.mentionEveryone ?? m.mention_everyone)) {
 		return 'pinged @everyone or @here'
@@ -443,7 +467,10 @@ function reportGhost(
 	const entry: GhostEntry = {
 		id,
 		author: tracked.author,
-		where: describeWhere(tracked.channelId ?? channelId, tracked.guildId ?? guildId),
+		where: describeWhere(
+			tracked.channelId ?? channelId,
+			tracked.guildId ?? guildId,
+		),
 		content: tracked.content,
 		kind: tracked.kind,
 		how,
@@ -511,7 +538,9 @@ function withHistory(record: Pick<EditRecord, 'history' | 'current'>): string {
 		// Strikethrough breaks code blocks, so those are only quoted.
 		const strike = !text.includes('```')
 		return lines
-			.map(line => (strike ? `> ~~${line.split('~~').join('')}~~` : `> ${line}`))
+			.map(line =>
+				strike ? `> ~~${line.split('~~').join('')}~~` : `> ${line}`,
+			)
 			.join('\n')
 	})
 
@@ -598,7 +627,11 @@ function AttachmentView({
 		<Stack spacing={4}>
 			{showImage ? (
 				<Image
-					source={{ uri: localPath ? `file://${localPath}` : (file.proxyUrl ?? file.url) }}
+					source={{
+						uri: localPath
+							? `file://${localPath}`
+							: (file.proxyUrl ?? file.url),
+					}}
 					style={{ width: '100%', height: 180, borderRadius: 8 }}
 					resizeMode="contain"
 					onError={() => setFailed(true)}
@@ -660,8 +693,15 @@ export default plugin({
 	jsonStorage: { load: true, default: DEFAULTS },
 
 	SettingsComponent({ api }) {
-		const { Button, Card, Stack, Text, TextInput, TableRowGroup, TableSwitchRow } =
-			Design
+		const {
+			Button,
+			Card,
+			Stack,
+			Text,
+			TextInput,
+			TableRowGroup,
+			TableSwitchRow,
+		} = Design
 		const storage = api.jsonStorage as unknown as JsonStorage<Settings>
 		const s: Settings = { ...DEFAULTS, ...(storage.use() ?? {}) }
 		const entries = parseEntries(s.entries)
@@ -671,7 +711,9 @@ export default plugin({
 
 		// What the native part has saved on this device. undefined = not loaded yet or unavailable.
 		const [kept, setKept] = useState<Record<string, string[]> | undefined>()
-		const [usage, setUsage] = useState<{ kept: number; pending: number } | undefined>()
+		const [usage, setUsage] = useState<
+			{ kept: number; pending: number } | undefined
+		>()
 		const [nativeChecked, setNativeChecked] = useState(false)
 
 		useEffect(() => {
@@ -718,10 +760,17 @@ export default plugin({
 			const mime = ext === 'json' ? 'application/json' : 'text/plain'
 			const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
 			const result = await safe(() =>
-				nativeExport(`message-logger-${stamp}.${ext}`, mime, build(entries, s.exportFormat)),
+				nativeExport(
+					`message-logger-${stamp}.${ext}`,
+					mime,
+					build(entries, s.exportFormat),
+				),
 			)
 			if (!result || result.startsWith('error')) {
-				Alert.alert("Couldn't save", result ?? 'The native part of this plugin is not loaded.')
+				Alert.alert(
+					"Couldn't save",
+					result ?? 'The native part of this plugin is not loaded.',
+				)
 			} else {
 				Alert.alert('Saved', `The export is in ${result}`)
 			}
@@ -730,7 +779,10 @@ export default plugin({
 		const copyLog = () => {
 			try {
 				Clipboard.setString(build(entries, s.exportFormat))
-				Alert.alert('Copied', `${entries.length} message(s) copied as ${s.exportFormat}.`)
+				Alert.alert(
+					'Copied',
+					`${entries.length} message(s) copied as ${s.exportFormat}.`,
+				)
 			} catch (e) {
 				Alert.alert("Couldn't copy", String(e))
 			}
@@ -863,7 +915,9 @@ export default plugin({
 				))}
 
 				<Stack spacing={8}>
-					<Text variant="text-md/semibold">Edited messages ({editRecords.length})</Text>
+					<Text variant="text-md/semibold">
+						Edited messages ({editRecords.length})
+					</Text>
 					{editRecords.length ? (
 						<Button
 							variant="secondary"
@@ -875,7 +929,8 @@ export default plugin({
 						/>
 					) : (
 						<Text variant="text-sm/medium">
-							None yet. Messages show up here after someone edits one you can see.
+							None yet. Messages show up here after someone edits one you can
+							see.
 						</Text>
 					)}
 				</Stack>
@@ -917,7 +972,9 @@ export default plugin({
 						label="Save files on this device"
 						subLabel="Downloads deleted attachments so they still open after the links expire"
 						value={s.saveFilesToDevice}
-						onValueChange={(v: boolean) => storage.set({ saveFilesToDevice: v })}
+						onValueChange={(v: boolean) =>
+							storage.set({ saveFilesToDevice: v })
+						}
 					/>
 					<TableSwitchRow
 						label="Pre-save new attachments"
@@ -977,13 +1034,19 @@ export default plugin({
 				</Stack>
 
 				<Stack spacing={8}>
-					<Text variant="text-md/semibold">Saved messages ({entries.length})</Text>
+					<Text variant="text-md/semibold">
+						Saved messages ({entries.length})
+					</Text>
 					{entries.length ? (
-						<Button variant="secondary" text="Clear log" onPress={confirmClear} />
+						<Button
+							variant="secondary"
+							text="Clear log"
+							onPress={confirmClear}
+						/>
 					) : (
 						<Text variant="text-sm/medium">
-							Nothing yet. Deleted messages show up here once someone deletes one
-							you can see.
+							Nothing yet. Deleted messages show up here once someone deletes
+							one you can see.
 						</Text>
 					)}
 				</Stack>
@@ -1039,7 +1102,10 @@ export default plugin({
 		})
 		log('Step 1: plugin starting')
 		const storage = jsonStorage as JsonStorage<Settings>
-		const getSettings = (): Settings => ({ ...DEFAULTS, ...(storage.cache ?? {}) })
+		const getSettings = (): Settings => ({
+			...DEFAULTS,
+			...(storage.cache ?? {}),
+		})
 
 		readSettings = getSettings
 		ghostSink = entry => {
@@ -1066,7 +1132,8 @@ export default plugin({
 		log('Step 1b: looking for the Flux dispatcher (instant redraw)')
 		cleanup(
 			getModules(withDispatcher(), (exports: any) => {
-				dispatcher = typeof exports.dispatch === 'function' ? exports : exports.default
+				dispatcher =
+					typeof exports.dispatch === 'function' ? exports : exports.default
 				log('Found the Flux dispatcher')
 			}),
 		)
@@ -1079,7 +1146,8 @@ export default plugin({
 				try {
 					for (const m of messages) {
 						const text = String(m.content ?? '')
-						const attachmentOnly = !text.trim() && (m.attachments?.length ?? 0) > 0
+						const attachmentOnly =
+							!text.trim() && (m.attachments?.length ?? 0) > 0
 						dispatcher?.dispatch({
 							type: 'MESSAGE_UPDATE',
 							guildId,
@@ -1116,7 +1184,13 @@ export default plugin({
 					const message = getCachedMessage(payload.channelId, payload.id)
 
 					// Ghost-ping check comes first so it works even with the logger off.
-					reportGhost(payload.id, 'deleted', payload.channelId, payload.guildId, message)
+					reportGhost(
+						payload.id,
+						'deleted',
+						payload.channelId,
+						payload.guildId,
+						message,
+					)
 
 					if (!s.enabled) return payload
 					if (deletedIds.has(payload.id)) return undefined // already kept
@@ -1186,7 +1260,10 @@ export default plugin({
 					refresh(found, payload.channelId, payload.guildId)
 					return undefined
 				} catch (e) {
-					log('MESSAGE_DELETE_BULK handler failed, letting it through:', String(e))
+					log(
+						'MESSAGE_DELETE_BULK handler failed, letting it through:',
+						String(e),
+					)
 					return payload
 				}
 			}),
@@ -1198,7 +1275,10 @@ export default plugin({
 				// Never block this event: always hand the payload back.
 				try {
 					if (getSettings().ghostPing && !payload?.optimistic) {
-						trackPing(payload?.message, payload?.guildId ?? payload?.message?.guild_id)
+						trackPing(
+							payload?.message,
+							payload?.guildId ?? payload?.message?.guild_id,
+						)
 					}
 				} catch (e) {
 					log('Ping tracking failed:', String(e))
@@ -1211,11 +1291,23 @@ export default plugin({
 					const m = payload?.message
 					const s = getSettings()
 					// Only real edits that carry a full mention list count.
-					if (s.ghostPing && s.ghostEdits && m?.id && m.edited_timestamp && Array.isArray(m.mentions)) {
+					if (
+						s.ghostPing &&
+						s.ghostEdits &&
+						m?.id &&
+						m.edited_timestamp &&
+						Array.isArray(m.mentions)
+					) {
 						const channelId = m.channel_id ?? m.channelId
 						const guildId = payload.guildId ?? m.guild_id
 						if (!pingKind(m, guildId)) {
-							reportGhost(m.id, 'edited', channelId, guildId, getCachedMessage(channelId, m.id))
+							reportGhost(
+								m.id,
+								'edited',
+								channelId,
+								guildId,
+								getCachedMessage(channelId, m.id),
+							)
 						}
 					}
 				} catch (e) {
@@ -1250,7 +1342,8 @@ export default plugin({
 				try {
 					const s = getSettings()
 					const m = payload?.message
-					if (!s.showEdits || !m?.id || typeof m.content !== 'string') return payload
+					if (!s.showEdits || !m?.id || typeof m.content !== 'string')
+						return payload
 
 					const channelId = m.channel_id ?? m.channelId ?? payload.channelId
 					const guildId = payload.guildId ?? m.guild_id
@@ -1327,13 +1420,20 @@ export default plugin({
 				try {
 					const s = getSettings()
 					const message = payload?.message
-					if (!s.enabled || !s.preSaveFiles || payload?.optimistic || !message?.id) return payload
+					if (
+						!s.enabled ||
+						!s.preSaveFiles ||
+						payload?.optimistic ||
+						!message?.id
+					)
+						return payload
 
 					const me = (Stores as any).UserStore?.getCurrentUser?.()?.id
 					if (!s.logOwn && message.author?.id === me) return payload
 
 					const files = collectFiles(message)
-					if (files.length) void safe(() => nativeSave(message.id, files, 'pending'))
+					if (files.length)
+						void safe(() => nativeSave(message.id, files, 'pending'))
 				} catch (e) {
 					log('MESSAGE_CREATE pre-save failed:', String(e))
 				}
