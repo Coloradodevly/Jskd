@@ -4,7 +4,7 @@
 	"name": "Bundle Update Checker",
 	"description": "Prompts you to restart when a new Revenge bundle is published.",
 	"author": "Evan Tanner",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"dependencies": {
 		"revenge.api": {
 			"version": ">=1 <2"
