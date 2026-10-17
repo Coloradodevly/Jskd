@@ -8,12 +8,25 @@
       "description": "Prompts you to restart when a new Revenge bundle is published.",
       "author": "Evan Tanner",
       "channels": {
-        "latest": "1.0.3"
+        "latest": "1.0.4"
       },
       "versions": {
         "1.0.3": {
           "url": "https://evantannermeta.github.io/Evan-Plugins/pool/EvanTanner.bundle-update-checker@1.0.3.zip",
           "sha256": "575350fe8a679eaec07d75f8686ff3d279dfb7188bd61e5d1eea3c84e7c2aafc",
+          "size": 2228,
+          "dependencies": {
+            "revenge.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        },
+        "1.0.4": {
+          "url": "https://evantannermeta.github.io/Evan-Plugins/pool/EvanTanner.bundle-update-checker@1.0.4.zip",
+          "sha256": "cd1284d19288833f61848427b7c16ea953ecf56b454c198ada3eb4a4561e2763",
           "size": 2228,
           "dependencies": {
             "revenge.api": {
