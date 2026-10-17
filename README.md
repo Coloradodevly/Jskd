@@ -22,7 +22,8 @@ A plugin repository for [Revenge](https://github.com/revenge-mod/revenge-bundle-
 | **Message Logger** | Keeps deleted messages in chat (in red), shows what edited messages said before, and warns you about ghost pings. Saves a log with attachments (copies of the files are kept on your device) that can be copied, shared or saved as text or JSON. Other plugins can build on its ghost-ping events. |
 | **Ghost Ping Notifications** | Sends an Android notification when someone pings you and then deletes the message. Needs Message Logger, which is installed with it. |
 | **Staff Tags** | Shows a tag next to the names of server owners and administrators, with custom tag text for specific people. |
-| **Auto-updater** | Checks for Revenge bundle updates and keeps your client up to date. |
+| **Clean URLs** | Removes tracking parameters from links you send and receive, such as `utm_*`, `fbclid` and `gclid`, plus site-specific ones like the share ID on YouTube, Spotify and X links. Links inside code blocks are left alone. |
+| **Auto-updater** | Checks for new Revenge bundle releases and asks you to restart to get them. You can choose how often it checks and which bundle link it watches. |
 
 <!-- Keep this table in step with the folders in /plugins. -->
 
@@ -30,6 +31,7 @@ A plugin repository for [Revenge](https://github.com/revenge-mod/revenge-bundle-
 
 - **Message Logger** only keeps messages your client received. The log, edit history and saved files stay on your device and nothing is sent anywhere. Files are copied when a message is deleted, or as messages arrive if you turn on **Pre-save new attachments**. Without a saved copy, attachment links can expire and old previews may stop loading.
 - **Ghost Ping Notifications** only works while Discord is still running in the background. Android may stop it after a while, and then a deleted ping can't be detected. Message text shows on the lock screen unless you turn that off in its settings.
+- **Clean URLs** only removes known tracking parameters from the text of a link. It never opens, follows or shortens links, and nothing is sent anywhere.
 - Message Logger and Ghost Ping Notifications include native (Kotlin) parts, so they only work on Android.
 - Plugins patch Discord's internals, so a Discord update can break one until it's updated.
 
