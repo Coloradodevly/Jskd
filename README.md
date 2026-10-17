@@ -18,7 +18,7 @@ A plugin repository for [Revenge](https://github.com/revenge-mod/revenge-bundle-
 
 | Plugin | What it does |
 | --- | --- |
-| **Plugin Browser** | Search, filter, enable, disable, uninstall and update plugins, and browse and install from this repository and the community one, all in one screen under Settings → Revenge. |
+| **Plugin Browser** | Search, filter, enable, disable, uninstall and update plugins, and browse and install from this repository and the community one, all in one screen under Settings → Revenge. A Settings tab sets how often it checks for plugin updates, or turns the checks off. |
 | **Message Logger** | Keeps deleted messages in chat (in red), shows what edited messages said before, and warns you about ghost pings. Saves a log with attachments (copies of the files are kept on your device) that can be copied, shared or saved as text or JSON. Other plugins can build on its ghost-ping events. |
 | **Ghost Ping Notifications** | Sends an Android notification when someone pings you and then deletes the message. Needs Message Logger, which is installed with it. |
 | **Staff Tags** | Shows a tag next to the names of server owners and administrators, with custom tag text for specific people. |
