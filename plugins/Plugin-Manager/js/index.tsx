@@ -45,6 +45,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Image, ScrollView, View } from 'react-native'
 import type { SettingsItem } from '@revenge-mod/discord/modules/settings'
+import type { JsonStorage } from '@revenge-mod/json-storage'
 import type { AnyPlugin } from '@revenge-mod/plugins/_'
 import type {
 	InstallPlan,
@@ -63,6 +64,35 @@ const errorText = (e: unknown) =>
 	e instanceof Error ? e.message : typeof e === 'string' ? e : String(e)
 
 const noop = () => {}
+
+/* -------------------------------------------------------------------------- */
+/*  Settings                                                                  */
+/* -------------------------------------------------------------------------- */
+
+interface Settings {
+	/** Check for plugin updates in the background. */
+	autoCheck: boolean
+	/** Minutes between background checks. One of INTERVALS. */
+	intervalMin: number
+}
+
+const INTERVALS = [
+	{ label: '1 minute', min: 1 },
+	{ label: '5 minutes', min: 5 },
+	{ label: '15 minutes', min: 15 },
+	{ label: '30 minutes', min: 30 },
+	{ label: '1 hour', min: 60 },
+]
+
+const DEFAULTS: Settings = { autoCheck: true, intervalMin: 1 }
+
+/** Fills in defaults and ignores an interval that isn't one of the choices. */
+function readSettings(raw?: Partial<Settings> | null): Settings {
+	const s = { ...DEFAULTS, ...(raw ?? {}) }
+	if (!INTERVALS.some(i => i.min === s.intervalMin))
+		s.intervalMin = DEFAULTS.intervalMin
+	return s
+}
 
 /** Opens an alert. Buttons close it before running their action. */
 function openAlert(
@@ -1061,13 +1091,55 @@ function BrowseTab({ updater }: { updater: Updater }) {
 	)
 }
 
+function SettingsTab({ storage }: { storage: JsonStorage<Settings> }) {
+	const { Text, TableRow, TableRowGroup, TableSwitchRow } = Design
+	const s = readSettings(storage.use())
+
+	return (
+		<View style={{ gap: 16 }}>
+			<TableRowGroup title="Automatic update checks">
+				<TableSwitchRow
+					label="Check for plugin updates"
+					subLabel="Refreshes your repositories in the background and asks before updating"
+					value={s.autoCheck}
+					onValueChange={(v: boolean) => storage.set({ autoCheck: v })}
+				/>
+			</TableRowGroup>
+
+			<TableRowGroup title="Check interval">
+				{INTERVALS.map(i => (
+					<TableRow
+						key={i.min}
+						label={`${s.intervalMin === i.min ? '✓  ' : '     '}${i.label}`}
+						onPress={() => storage.set({ intervalMin: i.min })}
+					/>
+				))}
+			</TableRowGroup>
+
+			<Text variant="text-sm/medium" color="text-muted">
+				{s.autoCheck
+					? 'Shorter intervals use more battery and data. Changes apply right away.'
+					: 'Automatic checks are off. You can still check by hand from the Installed tab.'}
+			</Text>
+		</View>
+	)
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Screen                                                                    */
 /* -------------------------------------------------------------------------- */
 
-function PluginManager({ plugin: self }: { plugin?: AnyPlugin }) {
+function PluginManager({
+	plugin: self,
+	storage,
+}: {
+	plugin?: AnyPlugin
+	storage?: JsonStorage<Settings>
+}) {
 	const { Stack, Button, Text } = Design
-	const [tab, setTab] = useState<'installed' | 'browse'>('installed')
+	const [tab, setTab] = useState<'installed' | 'browse' | 'settings'>(
+		'installed',
+	)
 	// Shared, so a check done on one tab shows on the other.
 	const updater = useUpdates()
 
@@ -1096,12 +1168,24 @@ function PluginManager({ plugin: self }: { plugin?: AnyPlugin }) {
 						size="sm"
 						onPress={() => setTab('browse')}
 					/>
+					<Button
+						text="Settings"
+						variant={tab === 'settings' ? 'primary' : 'secondary'}
+						size="sm"
+						onPress={() => setTab('settings')}
+					/>
 				</Stack>
 
 				{tab === 'installed' ? (
 					<InstalledTab updater={updater} />
-				) : (
+				) : tab === 'browse' ? (
 					<BrowseTab updater={updater} />
+				) : storage ? (
+					<SettingsTab storage={storage} />
+				) : (
+					<Text variant="text-sm/medium" color="text-muted">
+						Settings aren't available yet. Try again in a moment.
+					</Text>
 				)}
 			</ScrollView>
 		</Page>
@@ -1112,7 +1196,6 @@ function PluginManager({ plugin: self }: { plugin?: AnyPlugin }) {
 /*  Automatic update checker                                                  */
 /* -------------------------------------------------------------------------- */
 
-const UPDATE_CHECK_INTERVAL_MS = 60 * 1000 // every minute
 const FIRST_CHECK_DELAY_MS = 10 * 1000 // let Discord finish starting first
 const MAX_LISTED = 8 // keep the popup readable
 
@@ -1221,7 +1304,9 @@ async function applyUpdatesAndReload(ids: Set<string>) {
 	}
 }
 
-function startUpdateChecker(): () => void {
+function startUpdateChecker(storage: JsonStorage<Settings>): () => void {
+	const getSettings = () => readSettings(storage.cache)
+
 	// The set of updates the user was last asked about. Answering No (or closing
 	// the popup) means we stay quiet until a different set of updates shows up.
 	let lastAsked = ''
@@ -1291,14 +1376,42 @@ function startUpdateChecker(): () => void {
 		}
 	}
 
-	log(`Update checker started (every ${UPDATE_CHECK_INTERVAL_MS / 1000}s)`)
-	const first = setTimeout(check, FIRST_CHECK_DELAY_MS)
-	const timer = setInterval(check, UPDATE_CHECK_INTERVAL_MS)
+	let timer: ReturnType<typeof setInterval> | undefined
+	let scheduled: { autoCheck: boolean; intervalMin: number } | undefined
+
+	// (Re)starts the repeating check from the current settings.
+	const schedule = () => {
+		const { autoCheck, intervalMin } = getSettings()
+		if (
+			scheduled &&
+			scheduled.autoCheck === autoCheck &&
+			scheduled.intervalMin === intervalMin
+		)
+			return
+		scheduled = { autoCheck, intervalMin }
+
+		if (timer) clearInterval(timer)
+		timer = undefined
+
+		if (!autoCheck) {
+			log('Automatic update checks are off')
+			return
+		}
+		log(`Update checker running every ${intervalMin} minute(s)`)
+		timer = setInterval(check, intervalMin * 60 * 1000)
+	}
+
+	const first = setTimeout(() => {
+		if (getSettings().autoCheck) check()
+	}, FIRST_CHECK_DELAY_MS)
+	schedule()
+	const unsubscribe = storage.subscribe(schedule)
 
 	return () => {
 		stopped = true
 		clearTimeout(first)
-		clearInterval(timer)
+		if (timer) clearInterval(timer)
+		unsubscribe()
 		log('Update checker stopped')
 	}
 }
@@ -1310,11 +1423,12 @@ function startUpdateChecker(): () => void {
 const SETTING_KEY = 'EvanPluginBrowser'
 const ROUTE_NAME = 'Plugin Browser'
 
-/** This plugin's own record, so the screen can show its version. */
+/** This plugin's own record and storage, so the screen can show its version and settings. */
 let selfPlugin: AnyPlugin | undefined
+let selfStorage: JsonStorage<Settings> | undefined
 
 function PluginBrowserScreen() {
-	return <PluginManager plugin={selfPlugin} />
+	return <PluginManager plugin={selfPlugin} storage={selfStorage} />
 }
 
 const PluginBrowserSetting: SettingsItem = {
@@ -1349,11 +1463,15 @@ function registerBrowserSetting() {
 }
 
 export default plugin({
-	start({ cleanup, logger, plugin: self }) {
+	// Loaded up front so the checker can read the settings as soon as it starts.
+	jsonStorage: { load: true, default: DEFAULTS },
+
+	start({ cleanup, jsonStorage, logger, plugin: self }) {
 		pluginLogger = logger
 		selfPlugin = self as unknown as AnyPlugin
+		selfStorage = jsonStorage as unknown as JsonStorage<Settings>
 
-		cleanup(startUpdateChecker())
+		cleanup(startUpdateChecker(selfStorage))
 
 		// Registered once Discord's settings are ready, to keep startup fast.
 		cleanup(
@@ -1365,7 +1483,10 @@ export default plugin({
 
 	SettingsComponent({ api }) {
 		return (
-			<PluginManager plugin={api?.plugin as unknown as AnyPlugin | undefined} />
+			<PluginManager
+				plugin={api?.plugin as unknown as AnyPlugin | undefined}
+				storage={api?.jsonStorage as unknown as JsonStorage<Settings>}
+			/>
 		)
 	},
 })
