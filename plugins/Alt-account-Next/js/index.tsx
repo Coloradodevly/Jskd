@@ -1,5 +1,7 @@
 import { Design } from '@revenge-mod/discord/design'
 import { Stores } from '@revenge-mod/discord/flux'
+import type { JsonStorage } from '@revenge-mod/json-storage'
+import { BundleUpdaterManager } from '@revenge-mod/discord/native'
 import {
 	onSettingsModulesLoaded,
 	registerSettingsItem,
@@ -96,13 +98,36 @@ async function runProbe(): Promise<string> {
 	return text
 }
 
-function ProbeScreen() {
-	const { Button, Text } = Design
+interface Settings {
+	/** Experimental: add a row to Discord's main Settings. Needs a reload to apply. */
+	registerRow: boolean
+}
+
+const DEFAULTS: Settings = { registerRow: false }
+
+function ProbeScreen(props: { api?: { jsonStorage: JsonStorage<Settings> } }) {
+	const { Button, Text, TableRowGroup, TableSwitchRow } = Design
 	const [result, setResult] = useState('')
 	const [running, setRunning] = useState(false)
+	const storage = props?.api?.jsonStorage
+	const settings: Settings = { ...DEFAULTS, ...(storage?.use() ?? {}) }
 
 	return (
 		<ScrollView contentContainerStyle={{ gap: 16, padding: 16 }}>
+			{storage ? (
+				<>
+					<TableRowGroup title="Experimental">
+						<TableSwitchRow
+							label="Add a row to Discord's main Settings"
+							subLabel="Off by default. The last version crashed the Settings screen, so test this after you have the probe results. Takes effect after a reload."
+							value={settings.registerRow}
+							onValueChange={(v: boolean) => storage.set({ registerRow: v })}
+						/>
+					</TableRowGroup>
+					<Button variant="secondary" text="Reload Revenge" onPress={() => BundleUpdaterManager.reload()} />
+				</>
+			) : null}
+
 			<Text variant="text-md/medium">
 				Tap Run probe. When it finishes, long-press the text below to select it, copy it, and paste it to
 				Claude. It lists function names only, never tokens.
@@ -134,10 +159,17 @@ function ProbeScreen() {
 const NoIcon = () => null
 
 export default plugin({
-	// Reachable from the plugin's own Settings button too, in case the Settings row doesn't appear.
+	jsonStorage: { load: true, default: DEFAULTS },
+
+	// Always reachable from the plugin's own Settings button.
 	SettingsComponent: ProbeScreen,
 
-	start({ cleanup }) {
+	start({ cleanup, jsonStorage }) {
+		const storage = jsonStorage as JsonStorage<Settings>
+		if (!storage.cache?.registerRow) return
+
+		// The last attempt crashed Discord's RouteSetting with "undefined is not a function", so this
+		// row now also defines the optional hooks Discord's settings rows can have.
 		cleanup(
 			onSettingsModulesLoaded(() => {
 				cleanup(
@@ -149,11 +181,15 @@ export default plugin({
 						type: 'route',
 						title: () => 'Account Probe',
 						IconComponent: NoIcon,
+						usePredicate: () => true,
+						useTrailing: () => undefined,
+						useDescription: () => undefined,
+						useIsDisabled: () => false,
 						screen: {
 							route: 'AccountProbeScreen',
 							getComponent: () => ProbeScreen,
 						},
-					}),
+					} as any),
 				)
 			}),
 		)
